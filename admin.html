@@ -26,7 +26,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .qc{display:grid;grid-template-columns:minmax(120px,240px) 1fr;gap:12px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:10px;margin:10px 0}
 .qc img{width:100%;border:1px solid var(--line);border-radius:8px;align-self:start}
 .qc .f{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end}
-#st{font-weight:700;margin:10px 0;min-height:1.4em}.err{color:var(--bad)}summary{cursor:pointer}.mk.ak{border-color:#f59e0b;background:rgba(245,158,11,.15)}.mk.ak b{background:#f59e0b}.mk.pk{border-color:#3b82f6;background:rgba(59,130,246,.15)}.mk.pk b{background:#3b82f6}
+#st{font-weight:700;margin:10px 0;min-height:1.4em}.err{color:var(--bad)}summary{cursor:pointer}#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1d2b53;color:#fff;padding:10px 18px;border-radius:12px;display:none;z-index:9}.mk.ak{border-color:#f59e0b;background:rgba(245,158,11,.15)}.mk.ak b{background:#f59e0b}.mk.pk{border-color:#3b82f6;background:rgba(59,130,246,.15)}.mk.pk b{background:#3b82f6}
 @media(max-width:560px){.qc{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
 <h1>Add a paper</h1>
@@ -41,19 +41,20 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <label>School<input id="school"></label>
   <label>Year<input id="year" type="number" value="2018"></label>
   <label>Term / test<input id="term" placeholder="CT1, SA1…"></label>
-  <label>Who can see it<select id="vis"><option value="owner">Only me</option><option value="parents">Shown to parents</option><option value="hidden">Hidden</option></select></label>
-  <label>Paper PDF<input id="file" type="file" accept="application/pdf"></label>
+  <label>Who can see it<select id="vis"><option value="owner">Only me</option><option value="parents">Shown to parents</option><option value="hidden">Hidden</option><option value="selected">Chosen parents only</option></select></label>
+  <label>Paper PDF (pick several if needed)<input id="file" type="file" accept="application/pdf" multiple></label>
  </div><p class="hint" id="syl"></p><p class="hint" id="editb"></p><p class="err" id="dup"></p></div>
  <h2>1. Draw a box around each question</h2>
  <p class="hint">Click and drag on the page. Include the question number, picture and options. Use the page buttons to reach the answer sheet and read the answers from it. Works best on a laptop.</p>
  <div class="bar"><button class="ghost" id="prev">← Prev</button><b id="pl">No PDF yet</b><button class="ghost" id="next">Next →</button>
-  <select id="kind" style="width:auto"><option value="q">This page: question page</option><option value="a">This page: answer sheet</option><option value="x">This page: skip (blank)</option></select>
+  <button class="ghost" id="addpdf">+ Add another PDF</button><label class="hint" style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="cont" style="width:auto;margin:0"> Next box continues the previous one (flows over a page)</label><select id="kind" style="width:auto"><option value="q">This page: question page</option><option value="a">This page: answer sheet</option><option value="x">This page: skip (blank)</option></select>
   <select id="mode" style="width:auto"><option value="q">Drawing: a question</option><option value="a">Drawing: an answer picture</option><option value="p">Drawing: a shared picture or passage</option></select>
   <select id="src" style="width:auto;display:none"><option value="q">Showing: question pages</option><option value="a">Showing: answer sheet</option></select></div>
  <div class="scroll"><div id="wrap"><canvas id="cv" width="10" height="10"></canvas><div id="ov"><div id="rb"></div></div></div></div>
  <h2>2. Fill in each question</h2><div class="bar"><button class="ghost" id="sug">Suggest topics</button><span class="hint" id="sugs">Reads each question and guesses the topic. Please check the guesses.</span></div><div id="list"><p class="hint">Questions you draw appear here.</p></div>
  <div id="plist"></div><div id="alist"></div><button id="save" class="alt">Save paper</button><div id="st" aria-live="polite"></div>
 </div></div>
+<div id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
@@ -63,9 +64,9 @@ const SB_URL='https://sfqrgoydzwfxagkphztm.supabase.co',SB_KEY='sb_publishable_9
 const sb=supabase.createClient(SB_URL,SB_KEY);
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:r&3|8).toString(16)});
-const LEVELS=['Nursery','P1','P2','P3','P4','P5','P6'],SUBJ=['Maths','English','Science','Chinese','Higher Chinese'];
-const TYPES={mcq:'Multiple choice (answer 1-4)',number:'Number answer',text:'Word answer',equation:'Equation (e.g. 3 + 5 = 8)',open:'Open / drawing / multi-part (not auto-marked)'};
-const PH={mcq:'1, 2, 3 or 4',number:'e.g. 8',text:'e.g. three',equation:'e.g. 3 + 5 = 8',open:'Model answer (optional)'};
+const LEVELS=['Nursery','K1','K2','P1','P2','P3','P4','P5','P6','Sec 1','Sec 2','Sec 3','Sec 4','Sec 5','JC1','JC2'],SUBJ=['Maths','English','Science','Chinese','Higher Chinese','Social Studies'];
+const TYPES={mcq:'Multiple choice (answer 1-4)',number:'Number answer',text:'Word answer',equation:'Equation (e.g. 3 + 5 = 8)',truefalse:'True / False',multiblank:'Several blanks (e.g. __ candies in __ bottles)',open:'Open / drawing / multi-part (not auto-marked)'};
+const PH={mcq:'1, 2, 3 or 4',number:'e.g. 8',text:'e.g. three',equation:'e.g. 3 + 5 = 8',truefalse:'true or false',multiblank:'one answer per blank, separated by commas, e.g. 5, 3',open:'Model answer (optional)'};
 let topics=[],pdf=null,pdfFile=null,pageNo=1,crops=[],drag=null,editId=null,base=0,acrops=[],pcrops=[],kinds={},PAPERS=[],docs={};
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 /* ---- gate ---- */
@@ -76,18 +77,18 @@ async function gate(){const{data:{session}}=await sb.auth.getSession();
  if(!p||p.role!=='admin'){$('#gate').textContent='This page is for the admin only.';return}
  const{data:t}=await sb.from('topics').select('id,level,subject,topic').order('id');topics=t||[];
  $('#gate').style.display='none';$('#main').style.display='block';$('#who').textContent=session.user.email;init();mine()}
-function init(){$('#level').innerHTML=LEVELS.map(l=>`<option ${l==='P1'?'selected':''}>${l}</option>`).join('');$('#subject').innerHTML=SUBJ.map(s=>`<option>${s}</option>`).join('');
+function init(){$('#level').innerHTML=LEVELS.map(l=>`<option ${l==='P1'?'selected':''}>${l}</option>`).join('');$('#subject').innerHTML=SUBJ.map(s=>`<option>${s}</option>`).join('');withOther('level');withOther('subject');
  ['level','year'].forEach(i=>$('#'+i).onchange=()=>{syl();list()});$('#subject').onchange=()=>{list();dupCheck()};['title','school','year','term'].forEach(i=>$('#'+i).addEventListener('input',dupCheck));$('#level').addEventListener('change',dupCheck);syl()}
-const syllabus=()=>{const n=LEVELS.indexOf($('#level').value),y=+$('#year').value;return n<1?'':(y>=2020+n?'2021':'2013')};
+const syllabus=()=>{const m=$('#level').value.match(/^P([1-6])$/),y=+$('#year').value;return m&&$('#subject').value==='Maths'?(y>=2020+ +m[1]?'2021':'2013'):''};
 const syl=()=>{const s=syllabus();$('#syl').textContent=s?`Syllabus tag: ${s==='2021'?'2021 syllabus':'older (2013) syllabus; some questions may differ from today'}`:''};
 /* ---- pdf ---- */
-$('#file').onchange=async e=>{const f=e.target.files[0];if(!f)return;pdfFile=f;
+$('#file').onchange=async e=>{if(!e.target.files.length)return;let f;try{f=await mergeFiles([...e.target.files])}catch(x){$('#st').innerHTML='<span class="err">Could not combine those PDFs.</span>';return}pdfFile=f;
  try{pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;pageNo=1;crops=[];acrops=[];pcrops=[];kinds={};docs={};list();alist();plist();await render()}catch(x){$('#st').innerHTML='<span class="err">Could not open that PDF.</span>'}};
 async function render(){const pg=await pdf.getPage(pageNo),vp=pg.getViewport({scale:1.6}),cv=$('#cv');cv.width=vp.width;cv.height=vp.height;
  await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;$('#pl').textContent=`Page ${pageNo} of ${pdf.numPages}`;$('#kind').value=kinds[pageNo]||'q';marks()}
 $('#prev').onclick=()=>{if(pdf&&pageNo>1){pageNo--;render()}};$('#next').onclick=()=>{if(pdf&&pageNo<pdf.numPages){pageNo++;render()}};
-function marks(){document.querySelectorAll('.mk').forEach(x=>x.remove());[...crops.map(c=>({...c,a:0})),...acrops.map(c=>({...c,a:1})),...pcrops.map(c=>({...c,a:2,num:c.range||'?'}))].forEach(c=>{if(c.page!==pageNo||c.view!==(docs.cur||'q'))return;const d=document.createElement('div');d.className='mk'+(c.a===1?' ak':c.a===2?' pk':'');
- d.style.cssText=`left:${c.f[0]*100}%;top:${c.f[1]*100}%;width:${c.f[2]*100}%;height:${c.f[3]*100}%`;d.innerHTML=`<b>${esc(c.num)}</b>`;$('#ov').appendChild(d)})}
+function marks(){document.querySelectorAll('.mk').forEach(x=>x.remove());
+ [...crops.map(c=>({c,a:0,t:c.num})),...acrops.map(c=>({c,a:1,t:c.num})),...pcrops.map(c=>({c,a:2,t:c.range||'?'}))].forEach(({c,a,t})=>(c.segs||[c]).forEach(s=>{if(s.page!==pageNo||s.view!==(docs.cur||'q'))return;const d=document.createElement('div');d.className='mk'+(a===1?' ak':a===2?' pk':'');d.style.cssText=`left:${s.f[0]*100}%;top:${s.f[1]*100}%;width:${s.f[2]*100}%;height:${s.f[3]*100}%`;d.innerHTML=`<b>${esc(t)}</b>`;$('#ov').appendChild(d)}))}
 /* ---- drawing boxes ---- */
 const ov=$('#ov'),rb=$('#rb');
 const pt=e=>{const r=ov.getBoundingClientRect();return[Math.min(Math.max(e.clientX-r.left,0),r.width),Math.min(Math.max(e.clientY-r.top,0),r.height),r.width,r.height]};
@@ -97,9 +98,9 @@ ov.onpointermove=e=>{if(drag)upd(e)};
 ov.onpointerup=e=>{if(!drag)return;const[x,y,W,H]=pt(e),l=Math.min(x,drag[0]),t=Math.min(y,drag[1]),w=Math.abs(x-drag[0]),h=Math.abs(y-drag[1]);drag=null;rb.style.display='none';
  if(w<20||h<20)return;const cv=$('#cv'),sx=cv.width/W,sy=cv.height/H,o=document.createElement('canvas');o.width=Math.round(w*sx);o.height=Math.round(h*sy);
  o.getContext('2d').drawImage(cv,l*sx,t*sy,w*sx,h*sy,0,0,o.width,o.height);
- o.toBlob(b=>{if($('#mode').value==='p'){pcrops.push({page:pageNo,view:docs.cur||'q',f:[l/W,t/H,w/W,h/H],blob:b,url:URL.createObjectURL(b),range:''});plist();marks();return}if($('#mode').value==='a'){acrops.push({page:pageNo,view:docs.cur||'q',f:[l/W,t/H,w/W,h/H],blob:b,url:URL.createObjectURL(b),num:crops.length?crops[crops.length-1].num:String(base)});alist();marks();return}crops.push({view:docs.cur||'q',page:pageNo,f:[l/W,t/H,w/W,h/H],blob:b,url:URL.createObjectURL(b),num:String(base+crops.length+1),topic:'',type:'mcq',ans:'',marks:1});list();marks()},'image/jpeg',.85)};
+ addCrop(o,[l/W,t/H,w/W,h/H])};
 /* ---- question cards ---- */
-function topicOpts(sel){const lv=$('#level').value,sj=$('#subject').value;return'<option value="">Choose topic…</option>'+topics.filter(t=>t.level===lv&&t.subject===sj).map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>${esc(t.topic)}</option>`).join('')}
+function topicOpts(sel){const lv=$('#level').value,sj=$('#subject').value;return'<option value="">Choose topic…</option>'+topics.filter(t=>t.level===lv&&t.subject===sj).map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>${esc(t.topic)}</option>`).join('')+'<option value="__new">+ Add new topic…</option>'}
 function list(){const L=$('#list');if(!crops.length){L.innerHTML='<p class="hint">Questions you draw appear here.</p>';return}
  L.innerHTML=crops.map((c,i)=>`<div class="qc"><img src="${c.url}" alt="Question ${esc(c.num)}"><div class="f">
  <label>No.<input data-i="${i}" data-k="num" value="${esc(c.num)}"></label>
@@ -109,13 +110,19 @@ function list(){const L=$('#list');if(!crops.length){L.innerHTML='<p class="hint
  <label>Marks<input type="number" min="1" data-i="${i}" data-k="marks" value="${c.marks}"></label>
  <button class="ghost" data-del="${i}">Remove (p.${c.page})</button></div></div>`).join('')}
 $('#list').oninput=e=>{const t=e.target,i=t.dataset.i;if(i===undefined)return;crops[i][t.dataset.k]=t.value;if(t.dataset.k==='topic')crops[i].sug=false;if(t.dataset.k==='num')marks()};
-$('#list').onchange=e=>{if(e.target.dataset.k==='type'){list()}};
+$('#list').onchange=async e=>{const t=e.target,i=t.dataset.i;if(t.dataset.k==='type'){list();return}
+ if(t.dataset.k==='topic'&&t.value==='__new'){const n=(prompt('Name of the new topic')||'').trim();if(!n){crops[i].topic='';list();return}
+  const lv=$('#level').value,sj=$('#subject').value,id=`${norm(lv)}-${norm(sj)}-${norm(n)}`,row={id,level:lv,subject:sj,topic:n};
+  const{error}=await sb.from('topics').upsert(row);if(error){alert('Could not add the topic: '+error.message);crops[i].topic='';list();return}
+  if(!topics.some(x=>x.id===id))topics.push(row);crops[i].topic=id;crops[i].sug=false;list()}};
 $('#list').onclick=e=>{const d=e.target.dataset.del;if(d===undefined)return;URL.revokeObjectURL(crops[d].url);crops.splice(d,1);list();marks()};
 /* ---- save ---- */
 function answer(c){const A=c.ans.trim(),q='Q'+c.num+': ';
  if(c.type==='mcq'){const n=parseInt(A);if(![1,2,3,4].includes(n))throw q+'answer must be 1, 2, 3 or 4';return n}
  if(c.type==='number'){if(A===''||isNaN(Number(A)))throw q+'answer must be a number';return Number(A)}
  if(c.type==='text'){if(!A)throw q+'please type the answer';return A.toLowerCase()}
+ if(c.type==='truefalse'){const v=A.toLowerCase();if(['true','t','yes'].includes(v))return true;if(['false','f','no'].includes(v))return false;throw q+'type true or false'}
+ if(c.type==='multiblank'){const a=A.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);if(a.length<2)throw q+'type one answer per blank, separated by commas';return a}
  if(c.type==='equation'){const m=A.replace(/\s/g,'').match(/^(\d+)([+\-−×x*÷\/])(\d+)=(\d+)$/);if(!m)throw q+'write it like 3 + 5 = 8';return{nums:[+m[1],+m[3]],op:m[2],res:+m[4]}}
  return A}
 async function up(b,path,file,type){const{error}=await sb.storage.from(b).upload(path,file,{contentType:type});if(error)throw error.message}
@@ -161,22 +168,22 @@ $('#sug').onclick=async()=>{if(!crops.length)return;const s=$('#sugs');s.textCon
 async function mine(){const{data:ps}=await sb.from('papers').select('id,title,level,subject,school,year,term,visibility,questions(count)').order('created_at',{ascending:false});
  PAPERS=ps||[];const fq=($('#pq').value||'').toLowerCase(),shown=PAPERS.filter(p=>!fq||[p.title,p.school,p.year,p.term,p.level,p.subject].join(' ').toLowerCase().includes(fq));$('#savedt').textContent=`Papers already saved (${PAPERS.length})`;dupCheck();
  $('#mine').innerHTML=shown.length?shown.map(p=>`<div class="box"><b>${esc(p.title)}</b> <span class="hint">${p.level} ${p.subject} - ${esc([p.school,p.year,p.term].filter(Boolean).join(' '))} - ${p.questions&&p.questions[0]?p.questions[0].count:0} questions</span>
- <div class="bar" style="margin:8px 0 0"><select style="width:auto" data-vis="${p.id}">${[['owner','Only me'],['parents','Shown to parents'],['hidden','Hidden']].map(([v,l])=>`<option value="${v}" ${v===p.visibility?'selected':''}>${l}</option>`).join('')}</select>
- <button class="ghost" data-add="${p.id}">Add questions</button><button class="ghost" data-qs="${p.id}">Questions</button><button class="ghost" data-delp="${p.id}">Delete paper</button></div><div id="q-${p.id}"></div></div>`).join(''):'<p class="hint">No papers yet.</p>'}
+ <div class="bar" style="margin:8px 0 0"><select style="width:auto" data-vis="${p.id}">${[['owner','Only me'],['parents','Shown to all parents'],['selected','Chosen parents only'],['hidden','Hidden']].map(([v,l])=>`<option value="${v}" ${v===p.visibility?'selected':''}>${l}</option>`).join('')}</select>
+ <button class="ghost" data-add="${p.id}">Add questions</button><button class="ghost" data-qs="${p.id}">Questions</button><button class="ghost" data-repq="${p.id}">Replace question PDF</button><button class="ghost" data-repa="${p.id}">Replace answer PDF</button><button class="ghost" data-delp="${p.id}">Delete paper</button>${p.visibility==='selected'?`<button class="ghost" data-par="${p.id}">Choose parents</button>`:''}</div><div id="q-${p.id}"></div></div>`).join(''):'<p class="hint">No papers yet.</p>'}
 async function wipe(pid){for(const b of['papers','question-images']){const{data}=await sb.storage.from(b).list(pid,{limit:1000});if(data&&data.length)await sb.storage.from(b).remove(data.map(f=>`${pid}/${f.name}`))}}
 async function showQs(pid){const{data}=await sb.from('questions').select('id,number,topic_id,qtype,image_path').eq('paper_id',pid);
  $('#q-'+pid).innerHTML=(data||[]).sort((a,b)=>String(a.number).localeCompare(String(b.number),undefined,{numeric:true})).map(q=>`<div class="bar hint">Q${esc(q.number)} - ${q.qtype} - ${esc(q.topic_id||'no topic')} <button class="ghost" data-delq="${q.id}" data-path="${esc(q.image_path||'')}" data-pid="${pid}">Delete</button></div>`).join('')||'<p class="hint">No questions.</p>'}
 async function addMore(pid){const{data:p}=await sb.from('papers').select('*').eq('id',pid).single();if(!p)return;
  const{data:blob,error}=await sb.storage.from('papers').download(p.pdf_path);if(error){alert('Could not open the PDF: '+error.message);return}
  const{count}=await sb.from('questions').select('id',{count:'exact',head:true}).eq('paper_id',pid);
- editId=pid;base=count||0;pdfFile=null;$('#title').value=p.title;$('#level').value=p.level;$('#subject').value=p.subject;$('#school').value=p.school||'';$('#year').value=p.year||'';$('#term').value=p.term||'';$('#vis').value=p.visibility;
+ editId=pid;base=count||0;pdfFile=null;$('#title').value=p.title;setSel('level',p.level);setSel('subject',p.subject);$('#school').value=p.school||'';$('#year').value=p.year||'';$('#term').value=p.term||'';$('#vis').value=p.visibility;
  ['title','level','subject','school','year','term','vis','file'].forEach(i=>$('#'+i).disabled=true);
  docs={cur:'q',q:await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise};if(p.answer_pdf_path){const r2=await sb.storage.from('papers').download(p.answer_pdf_path);if(r2.data)docs.a=await pdfjsLib.getDocument({data:await r2.data.arrayBuffer()}).promise}pdf=docs.q;pageNo=1;crops=[];acrops=[];pcrops=[];plist();kinds={};$('#kind').style.display='none';$('#src').style.display=docs.a?'':'none';$('#src').value='q';alist();
  $('#editb').innerHTML=`Adding questions to <b>${esc(p.title)}</b> (${base} saved so far). Draw boxes for the new ones below.`;list();await render();window.scrollTo(0,0)}
-$('#mine').onchange=async e=>{const id=e.target.dataset.vis;if(!id)return;const{error}=await sb.from('papers').update({visibility:e.target.value}).eq('id',id);if(error)alert(error.message)};
+$('#mine').onchange=async e=>{const id=e.target.dataset.vis;if(!id)return;const v=e.target.value,{error}=await sb.from('papers').update({visibility:v}).eq('id',id);if(error){alert(error.message);return}toast('Saved ✓ who can see this paper is updated');await mine();if(v==='selected')pickParents(id)};
 $('#mine').onclick=async e=>{const d=e.target.dataset;
  if(d.delp){if(!confirm('Delete this paper and all its questions? This cannot be undone.'))return;await wipe(d.delp);const{error}=await sb.from('papers').delete().eq('id',d.delp);if(error)alert(error.message);mine()}
- else if(d.qs)showQs(d.qs);else if(d.add)addMore(d.add);
+ else if(d.qs)showQs(d.qs);else if(d.add)addMore(d.add);else if(d.repq||d.repa)replacePdf(d.repq||d.repa,!!d.repa);else if(d.par)pickParents(d.par);else if(d.savepar)saveParents(d.savepar);
  else if(d.delq){if(!confirm('Delete this question?'))return;if(d.path)await sb.storage.from('question-images').remove([d.path]);await sb.from('questions').delete().eq('id',d.delq);await mine();showQs(d.pid)}};
 /* ---- answer pictures, page kinds, duplicates, logout, new paper ---- */
 function alist(){$('#alist').innerHTML=acrops.length?'<h2>Answer pictures</h2>'+acrops.map((c,i)=>`<div class="qc"><img src="${c.url}" alt="Answer picture"><div class="f"><label>Belongs to question no.<input data-ai="${i}" value="${esc(c.num)}"></label><button class="ghost" data-adel="${i}">Remove (p.${c.page})</button></div></div>`).join(''):''}
@@ -202,5 +209,37 @@ function inRange(r,num){const n=String(num).trim().toLowerCase().replace(/\s/g,'
 function plist(){$('#plist').innerHTML=pcrops.length?'<h2>Shared pictures</h2>'+pcrops.map((c,i)=>`<div class="qc"><img src="${c.url}" alt="Shared picture"><div class="f"><label>Used by questions<input data-pi="${i}" value="${esc(c.range)}" placeholder="e.g. 8-10 or 9a, 9b"></label><button class="ghost" data-pdel="${i}">Remove (p.${c.page})</button></div></div>`).join(''):''}
 $('#plist').oninput=e=>{const i=e.target.dataset.pi;if(i!==undefined){pcrops[i].range=e.target.value;marks()}};
 $('#plist').onclick=e=>{const d=e.target.dataset.pdel;if(d===undefined)return;URL.revokeObjectURL(pcrops[d].url);pcrops.splice(d,1);plist();marks()};
+/* ---- several PDFs, stitched crops, custom levels ---- */
+async function mergeFiles(files){if(files.length===1)return files[0];const out=await PDFLib.PDFDocument.create();
+ for(const f of files){const src=await PDFLib.PDFDocument.load(await f.arrayBuffer());(await out.copyPages(src,src.getPageIndices())).forEach(pg=>out.addPage(pg))}
+ return new File([await out.save()],'merged.pdf',{type:'application/pdf'})}
+$('#addpdf').onclick=()=>{if(editId){alert('For a saved paper, use Replace question PDF or Replace answer PDF in Papers already saved.');return}if(!pdfFile){alert('Choose the paper PDF first.');return}
+ const i=document.createElement('input');i.type='file';i.accept='application/pdf';i.multiple=true;
+ i.onchange=async()=>{if(!i.files.length)return;try{pdfFile=await mergeFiles([pdfFile,...i.files]);pdf=await pdfjsLib.getDocument({data:await pdfFile.arrayBuffer()}).promise;await render()}catch(x){$('#st').innerHTML='<span class="err">Could not add that PDF.</span>'}};i.click()};
+async function addCrop(o,f){const mode=$('#mode').value,arr=mode==='p'?pcrops:mode==='a'?acrops:crops,view=docs.cur||'q',last=arr[arr.length-1],jpg=c=>new Promise(r=>c.toBlob(r,'image/jpeg',.85));
+ if($('#cont').checked&&last){const prev=await createImageBitmap(last.blob),c2=document.createElement('canvas');c2.width=Math.max(prev.width,o.width);c2.height=prev.height+o.height;
+  const x=c2.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c2.width,c2.height);x.drawImage(prev,0,0);x.drawImage(o,0,prev.height);
+  const b=await jpg(c2);URL.revokeObjectURL(last.url);last.blob=b;last.url=URL.createObjectURL(b);last.segs=(last.segs||[{page:last.page,view:last.view,f:last.f}]).concat([{page:pageNo,view,f}]);$('#cont').checked=false}
+ else{const b=await jpg(o),s={page:pageNo,view,f,blob:b,url:URL.createObjectURL(b)};
+  if(mode==='p')pcrops.push({...s,range:''});else if(mode==='a')acrops.push({...s,num:crops.length?crops[crops.length-1].num:String(base)});else crops.push({...s,num:String(base+crops.length+1),topic:'',type:'mcq',ans:'',marks:1})}
+ list();alist();plist();marks()}
+function replacePdf(pid,isAns){const f=document.createElement('input');f.type='file';f.accept='application/pdf';f.multiple=true;
+ f.onchange=async()=>{if(!f.files.length)return;if(!confirm(`Replace the ${isAns?'answer':'question'} PDF with ${f.files.length} file(s)? The old one is overwritten.`))return;
+  try{const file=await mergeFiles([...f.files]),path=`${pid}/${isAns?'answers':'paper'}.pdf`;const{error}=await sb.storage.from('papers').upload(path,file,{contentType:'application/pdf',upsert:true});if(error)throw error.message;
+   const{error:e2}=await sb.from('papers').update(isAns?{answer_pdf_path:path}:{pdf_path:path}).eq('id',pid);if(e2)throw e2.message;alert('Replaced ✓')}catch(x){alert('Problem: '+x)}};f.click()}
+function withOther(id){const s=$('#'+id);s.insertAdjacentHTML('beforeend','<option value="__other">Other…</option>');
+ s.addEventListener('change',()=>{if(s.value!=='__other')return;const n=(prompt('Type the new name')||'').trim();if(!n){s.selectedIndex=0;s.dispatchEvent(new Event('change'));return}s.insertBefore(new Option(n,n),s.lastElementChild);s.value=n;s.dispatchEvent(new Event('change'))})}
+function setSel(id,v){const s=$('#'+id);if(![...s.options].some(o=>o.value===v))s.insertBefore(new Option(v,v),s.lastElementChild);s.value=v}
+/* ---- choose parents, toast ---- */
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2500)}
+async function pickParents(pid){const el=$('#q-'+pid);el.innerHTML='Loading…';
+ const[a,b]=await Promise.all([sb.from('profiles').select('id,email,display_name').eq('role','parent').order('email'),sb.from('paper_access').select('user_id,expires_at').eq('paper_id',pid)]);
+ const has={};(b.data||[]).forEach(r=>has[r.user_id]=r);const ps=a.data||[],ex=(b.data&&b.data[0]&&b.data[0].expires_at||'').slice(0,10);
+ el.innerHTML=(ps.length?ps.map(u=>`<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0"><input type="checkbox" style="width:auto;margin:0" data-u="${u.id}" ${has[u.id]?'checked':''}> ${esc(u.email||u.display_name)}</label>`).join(''):'<p class="hint">No parent accounts yet. Add them in Supabase, Authentication, Users.</p>')+`<label style="max-width:240px">Access ends (optional)<input type="date" id="exp-${pid}" value="${ex}"></label><button class="alt" style="margin-top:8px" data-savepar="${pid}">Save parents</button>`}
+async function saveParents(pid){const el=$('#q-'+pid),bx=[...el.querySelectorAll('input[data-u]')],d=$('#exp-'+pid).value,exp=d?new Date(d+'T23:59:59').toISOString():null,
+ on=bx.filter(x=>x.checked).map(x=>x.dataset.u),off=bx.filter(x=>!x.checked).map(x=>x.dataset.u);
+ if(off.length){const{error}=await sb.from('paper_access').delete().eq('paper_id',pid).in('user_id',off);if(error)return alert(error.message)}
+ if(on.length){const{error}=await sb.from('paper_access').upsert(on.map(u=>({paper_id:pid,user_id:u,expires_at:exp})));if(error)return alert(error.message)}
+ toast('Saved ✓ parents updated')}
 gate();
 </script></body></html>
