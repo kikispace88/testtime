@@ -47,7 +47,7 @@ input{font:inherit;font-size:1.2rem;width:100%;padding:12px;border:3px solid var
 a.card{text-decoration:none;color:inherit}
 select{font:inherit;font-size:1rem;padding:8px 10px;border:2px solid var(--ink);border-radius:12px;background:var(--card);color:var(--ink)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chip{border:2px solid var(--ink);background:var(--card);border-radius:999px;padding:7px 14px}.chip.on{background:var(--sun);color:#1d2b53;font-weight:700}
-.qimg{display:block;max-width:100%;margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
+.qtxt{white-space:pre-wrap;font-size:1.25rem;margin:10px 0}.qimg{display:block;max-width:100%;margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:4px solid var(--coral);outline-offset:2px}
 </style></head><body><div id="app"><p style="text-align:center;margin-top:30vh">Loading…</p></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
@@ -90,6 +90,7 @@ const GEN={'maths-p1-01':['count','cmp','pat'],'maths-p1-02':['add','sub','mis']
 const LOAD='<p style="text-align:center;margin-top:30vh">Loading…</p>';
 let TOP=[],URLS={};
 const tname=id=>(TOP.find(t=>t.id===id)||{}).topic||id;
+const ptxt=q=>q.prompt&&!/^Question \S+$/.test(q.prompt)?`<p class="qtxt">${esc(q.prompt)}</p>`:'';
 const img=p=>p&&URLS[p]?`<img class="qimg" src="${URLS[p]}" alt="">`:'';
 async function boot(){if(!sb){app.innerHTML='<p style="text-align:center;margin-top:30vh">Test Time needs an internet connection to start.</p>';return}
  const{data}=await sb.auth.getSession();data.session?loadKids():login()}
@@ -149,7 +150,7 @@ ${p.answer_pdf_path&&u[p.answer_pdf_path]?`<a class="card" href="${u[p.answer_pd
 async function sign(qs){const ps=[...new Set(qs.flatMap(x=>x.src==='paper'?[x.q.image_path,x.q.passage_image_path,x.q.answer_image_path]:[]).filter(Boolean))];
  for(let i=0;i<ps.length;i+=100){const{data}=await sb.storage.from('question-images').createSignedUrls(ps.slice(i,i+100),3600);(data||[]).forEach(d=>{if(d.signedUrl)URLS[d.path]=d.signedUrl})}}
 const noQ=()=>{app.innerHTML='<p style="text-align:center;margin-top:25vh">No questions here yet.</p><button class="primary" onclick="home()">Back</button>'};
-async function start(tids,label){app.innerHTML=LOAD;const{data}=await sb.from('questions').select('*').eq('source','paper').in('topic_id',tids).limit(300);
+async function start(tids,label){app.innerHTML=LOAD;const{data}=await sb.from('questions').select('*').in('source',['paper','custom','generated']).in('topic_id',tids).limit(300);
  const pq=sh(data||[]).map(q=>({src:'paper',q})),gens=tids.flatMap(t=>GEN[t]||[]),gq=gens.length?Array.from({length:10},(_,i)=>({src:'gen',g:mk(gens[i%gens.length])})):[];
  let qs;if(pq.length&&gq.length){const a=Math.min(pq.length,5);qs=[...pq.slice(0,a),...gq.slice(0,10-a)]}else qs=(pq.length?pq:gq).slice(0,10);
  if(!qs.length)return noQ();await sign(qs);S.run={label,qs:sh(qs),i:0,score:0,saves:[],again:()=>start(tids,label)};ask()}
@@ -161,10 +162,10 @@ const AN=x=>x.src==='gen'?(x.g.t==='eq'?{nums:x.g.nums,op:x.g.op,res:x.g.res}:x.
 function ask(){const r=S.run,x=r.qs[r.i];r.done=false;r.shown=false;r.sel=TY(x)==='mcq'||TY(x)==='truefalse'?null:'';r.eq=['','',''];r.bl=[];
  app.innerHTML=`<div class="bar"><i style="width:${r.i/r.qs.length*100}%"></i></div>
 <div class="top"><button class="x" onclick="home()" aria-label="Quit">✕</button><span>${esc(r.label)}</span><span>${r.i+1} of ${r.qs.length}</span></div>
-${x.src==='gen'?`<h2>${x.g.q}</h2><div class="vis">${x.g.pic||''}</div>`:`${img(x.q.passage_image_path)}${img(x.q.image_path)}`}
+${x.src==='gen'?`<h2>${x.g.q}</h2><div class="vis">${x.g.pic||''}</div>`:`${img(x.q.passage_image_path)}${ptxt(x.q)}${img(x.q.image_path)}`}
 <div id="in"></div><div id="fb" aria-live="polite"></div><button id="go" class="primary" disabled onclick="go()">${TY(x)==='open'?'Show answer':'Check'}</button>`;draw()}
 function draw(){const r=S.run,x=r.qs[r.i],t=TY(x),a=AN(x),d=$('#in');
- if(t==='mcq'){const g=x.src==='gen',c=g?a:a-1,o=g?x.g.o:['1','2','3','4'];d.innerHTML=(g?'':'<div class="tiles">')+o.map((s,k)=>`<button class="opt ${r.done?(k===c?'good':k===r.sel?'bad':''):(r.sel===k?'on':'')}" ${r.done?'disabled':''} onclick="S.run.sel=${k};draw()">${g?`<i>${k+1}</i>${s}`:s}</button>`).join('')+(g?'':'</div>')}
+ if(t==='mcq'){const g=x.src==='gen',ot=!g&&Array.isArray(x.q.options)&&x.q.options.length?x.q.options:null,lst=g||ot,c=g?a:a-1,o=g?x.g.o:(ot||['1','2','3','4']);d.innerHTML=(lst?'':'<div class="tiles">')+o.map((s,k)=>`<button class="opt ${r.done?(k===c?'good':k===r.sel?'bad':''):(r.sel===k?'on':'')}" ${r.done?'disabled':''} onclick="S.run.sel=${k};draw()">${lst?`<i>${k+1}</i>${g?s:esc(s)}`:s}</button>`).join('')+(lst?'':'</div>')}
  else if(t==='truefalse')d.innerHTML='<div class="tiles">'+[true,false].map(v=>`<button class="opt ${r.done?(v===a?'good':v===r.sel?'bad':''):(r.sel===v?'on':'')}" ${r.done?'disabled':''} onclick="S.run.sel=${v};draw()">${v?'True':'False'}</button>`).join('')+'</div>';
  else if(t==='equation')d.innerHTML=`<div class="eqrow"><input inputmode="numeric" aria-label="first number" oninput="S.run.eq[0]=this.value;rd()">${a.op}<input inputmode="numeric" aria-label="second number" oninput="S.run.eq[1]=this.value;rd()">=<input inputmode="numeric" aria-label="answer" oninput="S.run.eq[2]=this.value;rd()"></div>`+(x.src==='gen'?`<p class="tail">${x.g.tail}</p>`:'');
  else if(t==='multiblank')d.innerHTML=a.map((_,i)=>`<input style="margin:6px 0" placeholder="Blank ${i+1}" aria-label="Blank ${i+1}" oninput="S.run.bl[${i}]=this.value;rd()">`).join('');
@@ -180,7 +181,7 @@ function check(x){const r=S.run,t=TY(x),a=AN(x);
  if(t==='multiblank')return a.every((v,i)=>same(r.bl[i],v));
  if(t==='equation'){const[p,q,s]=r.eq.map(Number);if(s!==a.res)return false;return'+×x*'.includes(a.op)?((p===a.nums[0]&&q===a.nums[1])||(p===a.nums[1]&&q===a.nums[0])):(p===a.nums[0]&&q===a.nums[1])}
  return false}
-function show(x){const t=TY(x),a=AN(x);return t==='mcq'?(x.src==='gen'?x.g.o[a]:'option '+a):t==='truefalse'?(a?'True':'False'):t==='multiblank'?a.join(', '):t==='equation'?`${a.nums[0]} ${a.op} ${a.nums[1]} = ${a.res}`:String(a)}
+function show(x){const t=TY(x),a=AN(x);return t==='mcq'?(x.src==='gen'?x.g.o[a]:(Array.isArray(x.q.options)&&x.q.options.length?x.q.options[a-1]:'option '+a)):t==='truefalse'?(a?'True':'False'):t==='multiblank'?a.join(', '):t==='equation'?`${a.nums[0]} ${a.op} ${a.nums[1]} = ${a.res}`:String(a)}
 function record(x,ok){const r=S.run;r.saves.push(sb.from('attempts').insert({child_id:S.kid.id,question_id:x.src==='paper'?x.q.id:null,template_id:x.src==='gen'?x.g.id:null,topic_id:x.src==='gen'?TOPIC[x.g.id]:x.q.topic_id,correct:ok,response:{sel:r.sel,eq:r.eq,bl:r.bl}}).then(z=>z.error?1:0,()=>1))}
 function go(){const r=S.run,x=r.qs[r.i],t=TY(x),fb=$('#fb'),b=$('#go');
  if(t==='open'&&!r.shown){r.shown=true;const q=x.q;fb.className='';fb.innerHTML=`${img(q.answer_image_path)}${typeof q.answer==='string'&&q.answer?`<p>Answer: <b>${esc(q.answer)}</b></p>`:''}<p>Did you get it right?</p>`;b.style.display='none';
