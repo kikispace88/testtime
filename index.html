@@ -177,7 +177,7 @@ function draw(){const r=S.run,x=r.qs[r.i],t=TY(x),a=AN(x),d=$('#in');
  else if(t==='open')d.innerHTML='';
  else d.innerHTML=`<input ${t==='number'?'inputmode="numeric"':'autocapitalize="none" autocomplete="off"'} aria-label="your answer" oninput="S.run.sel=this.value;rd()">`;
  rd()}
-const nz=s=>String(s??'').trim().toLowerCase(),same=(a,b)=>nz(a)===nz(b)||(nz(a)!==''&&!isNaN(a)&&!isNaN(b)&&Number(a)===Number(b));
+const nz=s=>String(s??'').trim().toLowerCase().replace(/[-\s]+/g,' '),same=(a,b)=>nz(a)===nz(b)||(nz(a)!==''&&!isNaN(a)&&!isNaN(b)&&Number(a)===Number(b));
 function ready(x){const r=S.run,t=TY(x);return t==='open'||(t==='mcq'||t==='truefalse'?r.sel!==null:t==='equation'?r.eq.every(v=>v.trim()!==''):t==='multiblank'?AN(x).every((_,i)=>nz(r.bl[i])!==''):nz(r.sel)!=='')}
 const rd=()=>{const r=S.run,x=r.qs[r.i],b=$('#go');if(b)b.disabled=r.done?false:!ready(x)};
 function check(x){const r=S.run,t=TY(x),a=AN(x);
