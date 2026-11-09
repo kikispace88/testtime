@@ -47,6 +47,7 @@ input{font:inherit;font-size:1.2rem;width:100%;padding:12px;border:3px solid var
 a.card{text-decoration:none;color:inherit}
 select{font:inherit;font-size:1rem;padding:8px 10px;border:2px solid var(--ink);border-radius:12px;background:var(--card);color:var(--ink)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chip{border:2px solid var(--ink);background:var(--card);border-radius:999px;padding:7px 14px}.chip.on{background:var(--sun);color:#1d2b53;font-weight:700}
+.grp{margin:10px 0}.grp summary{cursor:pointer;padding:12px 4px;font-size:1.1rem}.grp summary span{opacity:.7;font-size:.9rem;margin-left:6px}
 .qtxt{white-space:pre-wrap;font-size:1.25rem;margin:10px 0}.qimg{display:block;max-width:100%;margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:4px solid var(--coral);outline-offset:2px}
 </style></head><body><div id="app"><p style="text-align:center;margin-top:30vh">Loading…</p></div>
@@ -133,12 +134,16 @@ async function progress(){app.innerHTML=LOAD;const st=await stats(),ids=Object.k
 ${ids.length?ids.map(t=>{const x=st[t],p=Math.round(x.c/x.n*100);return`<div class="pg"><div><span>${esc(tname(t))}</span><span>${p}% (${x.c}/${x.n})</span></div><div class="pb"><i class="${x.n>=3&&p<70?'w':''}" style="width:${p}%"></i></div></div>`}).join(''):'<p style="margin-top:20px">No answers yet. Try some practice!</p>'}
 <p style="opacity:.7;font-size:.9rem;margin-top:20px">Lowest first. Red bars need more practice.</p>`}
 async function papersScreen(){app.innerHTML=LOAD;const{data}=await sb.from('papers').select('id,title,level,subject,school,year,term,syllabus,pdf_path,answer_pdf_path,questions(count)').order('year',{ascending:false});
- const lv=S.kid.level||'P1',ps=(data||[]).filter(p=>S.all||p.level===lv);
+ const all=data||[],lv=S.kid.level||'P1';S.pq=S.pq||'';
  app.innerHTML=`<div class="top"><button class="x" onclick="home()" aria-label="Back">←</button><span>Past papers</span><span></span></div>
-<div class="chips"><button class="chip${S.all?'':' on'}" id="c1">${esc(lv)}</button><button class="chip${S.all?' on':''}" id="c2">All levels</button></div>
-${ps.length?ps.map(p=>`<button class="card" data-p="${p.id}"><b>${esc(p.title)}</b><span>${esc([p.level,p.subject,p.school,p.year,p.term].filter(Boolean).join(' '))}</span><span>${p.questions&&p.questions[0]?p.questions[0].count:0} questions${p.syllabus==='2013'?' (older syllabus)':''}</span></button>`).join(''):'<p style="margin-top:20px">No papers have been shared with you yet.</p>'}`;
- $('#c1').onclick=()=>{S.all=false;papersScreen()};$('#c2').onclick=()=>{S.all=true;papersScreen()};
- document.querySelectorAll('.card[data-p]').forEach(b=>b.onclick=()=>paperScreen(ps.find(p=>p.id===b.dataset.p)))}
+<input id="ps" type="search" placeholder="Search school, year or title…" value="${esc(S.pq)}" aria-label="Search papers" style="margin:10px 0 0">
+<div class="chips"><button class="chip${S.all?'':' on'}" id="c1">${esc(lv)}</button><button class="chip${S.all?' on':''}" id="c2">All levels</button></div><div id="pl"></div>`;
+ const card=p=>`<button class="card" data-p="${p.id}"><b>${esc(p.title)}</b><span>${esc([p.level,p.subject,p.school,p.year,p.term].filter(Boolean).join(' '))}</span><span>${p.questions&&p.questions[0]?p.questions[0].count:0} questions${p.syllabus==='2013'?' (older syllabus)':''}</span></button>`;
+ const draw=()=>{const q=S.pq.trim().toLowerCase(),ps=all.filter(p=>(S.all||p.level===lv)&&(!q||[p.title,p.school,p.year,p.term,p.subject].join(' ').toLowerCase().includes(q))),g={};
+  ps.forEach(p=>{const k=p.school||'Other papers';(g[k]=g[k]||[]).push(p)});const open=q||ps.length<=6;
+  $('#pl').innerHTML=ps.length?Object.keys(g).sort().map(s=>`<details class="grp" ${open?'open':''}><summary><b>${esc(s)}</b><span>${g[s].length} paper${g[s].length>1?'s':''}</span></summary>${g[s].map(card).join('')}</details>`).join(''):`<p style="margin-top:20px">${all.length?'No papers found.':'No papers have been shared with you yet.'}</p>`};
+ draw();$('#ps').oninput=e=>{S.pq=e.target.value;draw()};$('#pl').onclick=e=>{const b=e.target.closest('[data-p]');if(b)paperScreen(all.find(p=>p.id===b.dataset.p))};
+ $('#c1').onclick=()=>{S.all=false;papersScreen()};$('#c2').onclick=()=>{S.all=true;papersScreen()}}
 async function paperScreen(p){app.innerHTML=LOAD;const paths=[p.pdf_path,p.answer_pdf_path].filter(Boolean),u={};
  if(paths.length){const{data}=await sb.storage.from('papers').createSignedUrls(paths,3600);(data||[]).forEach(d=>{if(d.signedUrl)u[d.path]=d.signedUrl})}
  const n=p.questions&&p.questions[0]?p.questions[0].count:0;
