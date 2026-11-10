@@ -44,7 +44,7 @@ input{font:inherit;font-size:1.2rem;width:100%;padding:12px;border:3px solid var
 #fb{min-height:60px;margin:12px 0 4px;font-size:1.1rem;font-weight:600}#fb.ok{color:var(--mint)}#fb.no{color:var(--coral)}
 .score{text-align:center;font-size:4.2rem;margin:.1em 0}.stars{text-align:center;font-size:2.2rem}
 .pg{margin:10px 0}.pg div{display:flex;justify-content:space-between;font-size:.95rem}.pb{height:14px;background:var(--line);border-radius:8px;overflow:hidden}.pb i{display:block;height:100%;background:var(--mint)}.pb i.w{background:var(--coral)}
-a.card{text-decoration:none;color:inherit}
+a.card{text-decoration:none;color:inherit}a{color:var(--ink)}
 select{font:inherit;font-size:1rem;padding:8px 10px;border:2px solid var(--ink);border-radius:12px;background:var(--card);color:var(--ink)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chip{border:2px solid var(--ink);background:var(--card);border-radius:999px;padding:7px 14px}.chip.on{background:var(--sun);color:#1d2b53;font-weight:700}
 .grp{margin:10px 0}.grp summary{cursor:pointer;padding:12px 4px;font-size:1.1rem}.grp summary span{opacity:.7;font-size:.9rem;margin-left:6px}
@@ -94,13 +94,36 @@ const tname=id=>(TOP.find(t=>t.id===id)||{}).topic||id;
 const ptxt=q=>q.prompt&&!/^Question \S+$/.test(q.prompt)?`<p class="qtxt">${esc(q.prompt)}</p>`:'';
 const img=p=>p&&URLS[p]?`<img class="qimg" src="${URLS[p]}" alt="">`:'';
 async function boot(){if(!sb){app.innerHTML='<p style="text-align:center;margin-top:30vh">Test Time needs an internet connection to start.</p>';return}
- const{data}=await sb.auth.getSession();data.session?loadKids():login()}
-function login(err){app.innerHTML=`<header class="hero"><div class="big">🌟</div><h1>Test Time</h1><p>Log in to continue</p></header>
-<div class="form"><input id="em" type="email" autocomplete="username" placeholder="Email" aria-label="Email"><input id="pw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"><p class="err">${err||''}</p><button class="primary" id="lg">Log in</button></div>`;
- $('#lg').onclick=async()=>{$('#lg').disabled=true;const{error}=await sb.auth.signInWithPassword({email:$('#em').value.trim(),password:$('#pw').value});error?login('Email or password is not right.'):loadKids()}}
+ let rec=false;sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY'){rec=true;newPassword()}});
+ const{data}=await sb.auth.getSession();if(rec)return;data.session?loadKids():login()}
+const SIGNUP_OPEN=false; /* set to true when sign-up is switched on in Supabase (go-live step) */
+function track(kind,detail){if(!sb)return;sb.from('events').insert({kind,child_id:S.kid?S.kid.id:null,detail:detail||null}).then(()=>{},()=>{})}
+function login(err,info){app.innerHTML=`<header class="hero"><div class="big">🌟</div><h1>Test Time</h1><p>Log in to continue</p></header>
+<div class="form"><input id="em" type="email" autocomplete="username" placeholder="Email" aria-label="Email"><input id="pw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"><p class="err">${err||''}</p>${info?`<p>${info}</p>`:''}<button class="primary" id="lg">Log in</button>
+<p style="margin:14px 0 0;text-align:center"><a href="#" id="fg">Forgot password?</a>${SIGNUP_OPEN?' · <a href="#" id="su">Create an account</a>':''}</p></div>`;
+ $('#lg').onclick=async()=>{$('#lg').disabled=true;const{error}=await sb.auth.signInWithPassword({email:$('#em').value.trim(),password:$('#pw').value});
+  if(error)login(/confirm/i.test(error.message||'')?'Please confirm your email first. Check your inbox.':'Email or password is not right.');else{track('login');loadKids()}};
+ $('#fg').onclick=e=>{e.preventDefault();forgot()};if(SIGNUP_OPEN)$('#su').onclick=e=>{e.preventDefault();signup()}}
+function signup(){app.innerHTML=`<header class="hero"><h1>Create account</h1><p>For parents and guardians</p></header>
+<div class="form"><input id="em" type="email" autocomplete="username" placeholder="Email" aria-label="Email"><input id="pw" type="password" autocomplete="new-password" placeholder="Password (at least 8 characters)" aria-label="Password">
+<label style="display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-size:.95rem"><input id="tc" type="checkbox" style="width:auto;margin-top:4px"><span>I am a parent or guardian and I agree to the <a href="terms.html" target="_blank">Terms</a> and <a href="privacy.html" target="_blank">Privacy Notice</a>.</span></label>
+<p class="err" id="se"></p><button class="primary" id="go2">Create account</button><p style="margin:14px 0 0;text-align:center"><a href="#" id="bk">Back to log in</a></p></div>`;
+ $('#bk').onclick=e=>{e.preventDefault();login()};
+ $('#go2').onclick=async()=>{const email=$('#em').value.trim(),pw=$('#pw').value,se=$('#se');
+  if(!email||pw.length<8){se.textContent='Please enter your email and a password of at least 8 characters.';return}if(!$('#tc').checked){se.textContent='Please tick the box to continue.';return}
+  $('#go2').disabled=true;const{data,error}=await sb.auth.signUp({email,password:pw,options:{emailRedirectTo:location.origin+location.pathname,data:{consent_at:new Date().toISOString()}}});
+  if(error){se.textContent=error.message;$('#go2').disabled=false;return}
+  if(data.session){track('signup');loadKids()}else if(data.user&&data.user.identities&&data.user.identities.length===0)login('That email already has an account. Log in, or use Forgot password.');
+  else login('',`We sent a link to ${esc(email)}. Open it to confirm, then log in.`)}}
+function forgot(){app.innerHTML=`<header class="hero"><h1>Reset password</h1></header><div class="form"><input id="em" type="email" placeholder="Your email" aria-label="Email"><p id="fe" class="err"></p><button class="primary" id="fgo">Send reset link</button><p style="margin:14px 0 0;text-align:center"><a href="#" id="bk">Back to log in</a></p></div>`;
+ $('#bk').onclick=e=>{e.preventDefault();login()};
+ $('#fgo').onclick=async()=>{const email=$('#em').value.trim();if(!email){$('#fe').textContent='Please type your email.';return}$('#fgo').disabled=true;
+  await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});login('','If that email has an account, a reset link is on its way.')}}
+function newPassword(){app.innerHTML=`<header class="hero"><h1>New password</h1></header><div class="form"><input id="np" type="password" autocomplete="new-password" placeholder="New password (at least 8 characters)" aria-label="New password"><p id="ne" class="err"></p><button class="primary" id="npb">Save password</button></div>`;
+ $('#npb').onclick=async()=>{const v=$('#np').value;if(v.length<8){$('#ne').textContent='At least 8 characters, please.';return}const{error}=await sb.auth.updateUser({password:v});if(error){$('#ne').textContent=error.message;return}history.replaceState(null,'',location.pathname);loadKids()}}
 async function loadKids(){const[k,t]=await Promise.all([sb.from('children').select('*').order('created_at'),sb.from('topics').select('id,level,subject,topic').order('id')]);
  if(k.error){app.innerHTML=`<p class="err" style="margin-top:20vh;text-align:center">Could not load profiles.<br>${esc(k.error.message)}</p><button class="primary" onclick="out()">Log out</button>`;return}
- TOP=t.data||[];S.kids=k.data||[];const id=localStorage.getItem('kid');S.kid=S.kids.find(c=>c.id===id)||null;S.kid?home():kidsScreen()}
+ TOP=t.data||[];S.kids=k.data||[];const id=localStorage.getItem('kid');S.kid=S.kids.find(c=>c.id===id)||null;track('open');S.kid?home():kidsScreen()}
 function kidsScreen(){app.innerHTML=`<header class="hero"><h1>Who is practising?</h1></header>
 ${S.kids.map(k=>`<button class="card" data-k="${k.id}"><b>${k.avatar||'🙂'} ${esc(k.name)}</b><span>${esc(k.level||'P1')}</span></button>`).join('')}
 <div class="form"><h3>Add a child</h3><input id="nm" placeholder="Name" maxlength="20" aria-label="Child name"><p style="margin:8px 0 0"><select id="lv" aria-label="Level">${LV.map(l=>`<option ${l==='P1'?'selected':''}>${l}</option>`).join('')}</select></p><div class="tiles" id="av" style="margin-top:8px">${['🦊','🐼','🐯','🐸','🦄','🐙'].map((a,i)=>`<button class="opt${i?'':' on'}" data-a="${a}">${a}</button>`).join('')}</div><p class="err" id="er"></p><button class="primary" id="add">Add child</button></div>
@@ -111,7 +134,7 @@ ${S.kids.map(k=>`<button class="card" data-k="${k.id}"><b>${k.avatar||'🙂'} ${
  $('#add').onclick=async()=>{const name=$('#nm').value.trim();if(!name){$('#er').textContent='Please type a name.';return}
   const{data,error}=await sb.from('children').insert({name,avatar:av,level:$('#lv').value}).select().single();
   if(error){$('#er').textContent='Could not save: '+error.message;return}
-  S.kids.push(data);S.kid=data;localStorage.setItem('kid',data.id);home()}}
+  S.kids.push(data);S.kid=data;localStorage.setItem('kid',data.id);track('child_created',{level:data.level});home()}}
 async function stats(){const{data}=await sb.rpc('child_topic_stats',{cid:S.kid.id});const m={};(data||[]).forEach(r=>m[r.topic_id]={n:+r.n,c:+r.c});return m}
 async function home(){app.innerHTML=LOAD;const k=S.kid,lv=k.level||'P1';
  const subs=[...new Set(TOP.filter(t=>t.level===lv).map(t=>t.subject))];if(!subs.length)subs.push('Maths');if(!subs.includes(S.sub))S.sub=subs.includes('Maths')?'Maths':subs[0];
@@ -119,6 +142,7 @@ async function home(){app.innerHTML=LOAD;const k=S.kid,lv=k.level||'P1';
  const tops=TOP.filter(t=>t.level===lv&&t.subject===S.sub),weak=Object.keys(st).filter(t=>st[t].n>=3&&st[t].c/st[t].n<.7);
  app.innerHTML=`<header class="hero"><div class="big">${k.avatar||'🙂'}</div><h1>Hi ${esc(k.name)}!</h1><p><select id="lvs" aria-label="Level">${LV.map(l=>`<option ${l===lv?'selected':''}>${l}</option>`).join('')}</select></p></header>
 ${subs.length>1?`<div class="chips">${subs.map(s=>`<button class="chip${s===S.sub?' on':''}" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>`:''}
+<input id="hs" type="search" placeholder="Search topics or papers…" aria-label="Search" style="margin:4px 0 8px"><button class="card" id="hp" style="display:none"></button>
 <button class="card alt" id="pp"><b>📚 Past papers</b><span>Try real test papers</span></button>
 ${weak.length?`<button class="card" id="wk"><b>Practise my weak topics</b><span>${weak.map(tname).map(esc).join(', ')}</span></button>`:''}
 <button class="card" id="pg"><b>📈 My progress</b><span>See how I am doing</span></button>
@@ -128,38 +152,46 @@ ${tops.map(t=>{const n=cnt[t.id]||0,g=GEN[t.id],on=n||g||!rpcOk;return`<button c
  $('#lvs').onchange=async e=>{const{error}=await sb.from('children').update({level:e.target.value}).eq('id',k.id);if(!error)k.level=e.target.value;home()};
  document.querySelectorAll('.chip[data-s]').forEach(b=>b.onclick=()=>{S.sub=b.dataset.s;home()});
  document.querySelectorAll('.card[data-t]').forEach(b=>b.onclick=()=>start([b.dataset.t],tname(b.dataset.t)));
- $('#pp').onclick=papersScreen;$('#pg').onclick=progress;if(weak.length)$('#wk').onclick=()=>start(weak,'Weak topics')}
+ $('#pp').onclick=()=>{S.pq='';papersScreen()};$('#pg').onclick=progress;if(weak.length)$('#wk').onclick=()=>start(weak,'Weak topics');
+ $('#hs').oninput=e=>{const v=e.target.value.trim(),q=v.toLowerCase();document.querySelectorAll('.card[data-t]').forEach(b=>b.style.display=!q||b.textContent.toLowerCase().includes(q)?'':'none');const b=$('#hp');b.style.display=q?'':'none';b.innerHTML=`<b>Find past papers for “${esc(v)}”</b>`;b.onclick=()=>{S.pq=v;papersScreen()}}}
 async function progress(){app.innerHTML=LOAD;const st=await stats(),ids=Object.keys(st).sort((a,b)=>st[a].c/st[a].n-st[b].c/st[b].n);
  app.innerHTML=`<div class="top"><button class="x" onclick="home()" aria-label="Back">←</button><span>${esc(S.kid.name)}’s progress</span><span></span></div>
 ${ids.length?ids.map(t=>{const x=st[t],p=Math.round(x.c/x.n*100);return`<div class="pg"><div><span>${esc(tname(t))}</span><span>${p}% (${x.c}/${x.n})</span></div><div class="pb"><i class="${x.n>=3&&p<70?'w':''}" style="width:${p}%"></i></div></div>`}).join(''):'<p style="margin-top:20px">No answers yet. Try some practice!</p>'}
 <p style="opacity:.7;font-size:.9rem;margin-top:20px">Lowest first. Red bars need more practice.</p>`}
-async function papersScreen(){app.innerHTML=LOAD;const{data}=await sb.from('papers').select('id,title,level,subject,school,year,term,syllabus,pdf_path,answer_pdf_path,questions(count)').order('year',{ascending:false});
- const all=data||[],lv=S.kid.level||'P1';S.pq=S.pq||'';
+async function papersScreen(){app.innerHTML=LOAD;const{data}=await sb.from('papers').select('id,title,level,subject,school,year,term,syllabus,pdf_path,answer_pdf_path,topic_ids,questions(count)').order('year',{ascending:false});
+ const all=data||[],lv=S.kid.level||'P1',tops=TOP.filter(t=>t.level===lv&&t.subject===S.sub);S.pq=S.pq||'';
  app.innerHTML=`<div class="top"><button class="x" onclick="home()" aria-label="Back">←</button><span>Past papers</span><span></span></div>
-<input id="ps" type="search" placeholder="Search school, year or title…" value="${esc(S.pq)}" aria-label="Search papers" style="margin:10px 0 0">
-<div class="chips"><button class="chip${S.all?'':' on'}" id="c1">${esc(lv)}</button><button class="chip${S.all?' on':''}" id="c2">All levels</button></div><div id="pl"></div>`;
+<input id="ps" type="search" placeholder="Search school, year or topic…" value="${esc(S.pq)}" aria-label="Search papers" style="margin:10px 0 0">
+<div class="chips"><button class="chip${S.all?'':' on'}" id="c1">${esc(lv)}</button><button class="chip${S.all?' on':''}" id="c2">All levels</button></div>
+<div class="chips" id="tc">${tops.map(t=>`<button class="chip" data-q="${esc(t.topic)}">${esc(t.topic)}</button>`).join('')}</div><div id="pl"></div>`;
  const card=p=>`<button class="card" data-p="${p.id}"><b>${esc(p.title)}</b><span>${esc([p.level,p.subject,p.school,p.year,p.term].filter(Boolean).join(' '))}</span><span>${p.questions&&p.questions[0]?p.questions[0].count:0} questions${p.syllabus==='2013'?' (older syllabus)':''}</span></button>`;
- const draw=()=>{const q=S.pq.trim().toLowerCase(),ps=all.filter(p=>(S.all||p.level===lv)&&(!q||[p.title,p.school,p.year,p.term,p.subject].join(' ').toLowerCase().includes(q))),g={};
-  ps.forEach(p=>{const k=p.school||'Other papers';(g[k]=g[k]||[]).push(p)});const open=q||ps.length<=6;
-  $('#pl').innerHTML=ps.length?Object.keys(g).sort().map(s=>`<details class="grp" ${open?'open':''}><summary><b>${esc(s)}</b><span>${g[s].length} paper${g[s].length>1?'s':''}</span></summary>${g[s].map(card).join('')}</details>`).join(''):`<p style="margin-top:20px">${all.length?'No papers found.':'No papers have been shared with you yet.'}</p>`};
- draw();$('#ps').oninput=e=>{S.pq=e.target.value;draw()};$('#pl').onclick=e=>{const b=e.target.closest('[data-p]');if(b)paperScreen(all.find(p=>p.id===b.dataset.p))};
+ const draw=()=>{const q=S.pq.trim().toLowerCase();
+  if(!q){$('#pl').innerHTML=`<p style="margin-top:18px;opacity:.75">${all.length?`${all.length} paper${all.length>1?'s':''} available. Type a school, year or topic, or tap a topic above.`:'No papers have been shared with you yet.'}</p>`;return}
+  const ts=TOP.filter(t=>(S.all||t.level===lv)&&t.topic.toLowerCase().includes(q)).slice(0,6),g={},
+   ps=all.filter(p=>(S.all||p.level===lv)&&[p.title,p.school,p.year,p.term,p.subject,...(p.topic_ids||[]).map(tname)].join(' ').toLowerCase().includes(q));
+  ps.forEach(p=>{const k=p.school||'Other papers';(g[k]=g[k]||[]).push(p)});
+  $('#pl').innerHTML=(ts.length?`<h3 style="margin:16px 0 4px">Practise by topic</h3>${ts.map(t=>`<button class="card" data-t="${t.id}"><b>${esc(t.topic)}</b><span>${esc(t.level)} ${esc(t.subject)}</span></button>`).join('')}`:'')+
+   (ps.length?`<h3 style="margin:16px 0 4px">Papers</h3>`+Object.keys(g).sort().map(s=>`<details class="grp" open><summary><b>${esc(s)}</b><span>${g[s].length} paper${g[s].length>1?'s':''}</span></summary>${g[s].map(card).join('')}</details>`).join(''):'<p style="margin-top:16px">No papers found.</p>')};
+ draw();$('#ps').oninput=e=>{S.pq=e.target.value;draw()};
+ $('#tc').onclick=e=>{const b=e.target.closest('[data-q]');if(b){S.pq=b.dataset.q;$('#ps').value=S.pq;draw()}};
+ $('#pl').onclick=e=>{const b=e.target.closest('[data-p]');if(b)return paperScreen(all.find(p=>p.id===b.dataset.p));const t=e.target.closest('[data-t]');if(t)start([t.dataset.t],tname(t.dataset.t))};
  $('#c1').onclick=()=>{S.all=false;papersScreen()};$('#c2').onclick=()=>{S.all=true;papersScreen()}}
-async function paperScreen(p){app.innerHTML=LOAD;const paths=[p.pdf_path,p.answer_pdf_path].filter(Boolean),u={};
+async function paperScreen(p){app.innerHTML=LOAD;track('open_paper',{paper:p.id});const paths=[p.pdf_path,p.answer_pdf_path].filter(Boolean),u={};
  if(paths.length){const{data}=await sb.storage.from('papers').createSignedUrls(paths,3600);(data||[]).forEach(d=>{if(d.signedUrl)u[d.path]=d.signedUrl})}
  const n=p.questions&&p.questions[0]?p.questions[0].count:0;
  app.innerHTML=`<div class="top"><button class="x" onclick="papersScreen()" aria-label="Back">←</button><span>${esc(p.level)} ${esc(p.subject)}</span><span></span></div><h2>${esc(p.title)}</h2>
-<button class="card alt" id="do"><b>Do it on screen</b><span>${n} questions</span></button>
-${u[p.pdf_path]?`<a class="card" href="${u[p.pdf_path]}" target="_blank" rel="noopener"><b>🖨 Print the paper</b><span>PDF for hard copy</span></a>`:''}
-${p.answer_pdf_path&&u[p.answer_pdf_path]?`<a class="card" href="${u[p.answer_pdf_path]}" target="_blank" rel="noopener"><b>Answer sheet (for parents)</b><span>PDF</span></a>`:''}`;
- $('#do').onclick=()=>startPaper(p)}
+${n?`<button class="card alt" id="do"><b>Do it on screen</b><span>${n} questions</span></button>`:'<p style="margin:12px 0">This paper is print-only for now.</p>'}
+${u[p.pdf_path]?`<a class="card" href="${u[p.pdf_path]}" target="_blank" rel="noopener" onclick="track('print_pdf')"><b>🖨 Print the paper</b><span>PDF for hard copy</span></a>`:''}
+${p.answer_pdf_path&&u[p.answer_pdf_path]?`<a class="card" href="${u[p.answer_pdf_path]}" target="_blank" rel="noopener" onclick="track('answers_pdf')"><b>Answer sheet (for parents)</b><span>PDF</span></a>`:''}`;
+ if(n)$('#do').onclick=()=>startPaper(p)}
 async function sign(qs){const ps=[...new Set(qs.flatMap(x=>x.src==='paper'?[x.q.image_path,x.q.passage_image_path,x.q.answer_image_path]:[]).filter(Boolean))];
  for(let i=0;i<ps.length;i+=100){const{data}=await sb.storage.from('question-images').createSignedUrls(ps.slice(i,i+100),3600);(data||[]).forEach(d=>{if(d.signedUrl)URLS[d.path]=d.signedUrl})}}
 const noQ=()=>{app.innerHTML='<p style="text-align:center;margin-top:25vh">No questions here yet.</p><button class="primary" onclick="home()">Back</button>'};
-async function start(tids,label){app.innerHTML=LOAD;const{data}=await sb.from('questions').select('*').in('source',['paper','custom','generated']).in('topic_id',tids).limit(300);
+async function start(tids,label){app.innerHTML=LOAD;track('start_practice',{topics:tids});const{data}=await sb.from('questions').select('*').in('source',['paper','custom','generated']).in('topic_id',tids).limit(300);
  const pq=sh(data||[]).map(q=>({src:'paper',q})),gens=tids.flatMap(t=>GEN[t]||[]),gq=gens.length?Array.from({length:10},(_,i)=>({src:'gen',g:mk(gens[i%gens.length])})):[];
  let qs;if(pq.length&&gq.length){const a=Math.min(pq.length,5);qs=[...pq.slice(0,a),...gq.slice(0,10-a)]}else qs=(pq.length?pq:gq).slice(0,10);
  if(!qs.length)return noQ();await sign(qs);S.run={label,qs:sh(qs),i:0,score:0,saves:[],again:()=>start(tids,label)};ask()}
-async function startPaper(p){app.innerHTML=LOAD;const{data}=await sb.from('questions').select('*').eq('paper_id',p.id);
+async function startPaper(p){app.innerHTML=LOAD;track('start_paper',{paper:p.id});const{data}=await sb.from('questions').select('*').eq('paper_id',p.id);
  const qs=(data||[]).sort((a,b)=>String(a.number).localeCompare(String(b.number),undefined,{numeric:true})).map(q=>({src:'paper',q}));
  if(!qs.length)return noQ();await sign(qs);S.run={label:p.title,qs,i:0,score:0,saves:[]};ask()}
 const TY=x=>x.src==='gen'?(x.g.t==='eq'?'equation':'mcq'):x.q.qtype;
@@ -192,12 +224,12 @@ function go(){const r=S.run,x=r.qs[r.i],t=TY(x),fb=$('#fb'),b=$('#go');
  if(t==='open'&&!r.shown){r.shown=true;const q=x.q;fb.className='';fb.innerHTML=`${img(q.answer_image_path)}${typeof q.answer==='string'&&q.answer?`<p>Answer: <b>${esc(q.answer)}</b></p>`:''}<p>Did you get it right?</p>`;b.style.display='none';
   fb.insertAdjacentHTML('afterend','<div id="sm"><button class="primary" onclick="selfMark(1)">✅ I got it right</button><button class="mini" style="margin-top:10px" onclick="selfMark(0)">Not yet</button></div>');return}
  if(!r.done){r.done=true;const ok=check(x);record(x,ok);if(ok)r.score++;fb.className=ok?'ok':'no';
-  fb.innerHTML=ok?'🎉 Correct! Well done!':`Not quite. The answer is <b>${esc(show(x))}</b>${x.src==='paper'?img(x.q.answer_image_path):''}`;
+  fb.innerHTML=(ok?'🎉 Correct! Well done!':`Not quite. The answer is <b>${esc(show(x))}</b>`)+(x.src==='paper'&&x.q.answer_image_path?`<p style="margin:10px 0 2px;font-weight:600">Answer key</p>${img(x.q.answer_image_path)}`:'');
   if(t==='mcq'||t==='truefalse')draw();else $('#in').classList.add('lock');
   b.textContent=r.i===r.qs.length-1?'See my score':'Next question';b.disabled=false}else next()}
 function selfMark(ok){const r=S.run;record(r.qs[r.i],!!ok);if(ok)r.score++;next()}
 function next(){const r=S.run;r.i<r.qs.length-1?(r.i++,ask()):finish()}
-async function finish(){const r=S.run;app.innerHTML=LOAD;const bad=(await Promise.all(r.saves)).reduce((a,b)=>a+b,0),pc=r.score/r.qs.length;
+async function finish(){const r=S.run;track('finish',{score:r.score,total:r.qs.length,label:r.label});app.innerHTML=LOAD;const bad=(await Promise.all(r.saves)).reduce((a,b)=>a+b,0),pc=r.score/r.qs.length;
  app.innerHTML=`<div class="score">${r.score} / ${r.qs.length}</div><div class="stars">${pc>=.9?'⭐⭐⭐':pc>=.6?'⭐⭐':'⭐'}</div>
 <h2 style="text-align:center">${pc===1?'Perfect score!':pc>=.6?'Great job!':'Good try! Let’s practise again.'}</h2>
 ${bad?'<p class="err" style="text-align:center">Some answers could not be saved. Check your internet.</p>':''}

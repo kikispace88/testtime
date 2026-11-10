@@ -43,6 +43,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <label>Term / test<input id="term" placeholder="CT1, SA1…"></label>
   <label>Who can see it<select id="vis"><option value="owner">Only me</option><option value="parents">Shown to parents</option><option value="hidden">Hidden</option><option value="selected">Chosen parents only</option></select></label>
   <label>Paper PDF (pick several if needed)<input id="file" type="file" accept="application/pdf" multiple></label>
+  <label>Topics covered (optional)<select id="ptopics" multiple size="4"></select></label>
  </div><p class="hint" id="syl"></p><p class="hint" id="editb"></p><p class="err" id="dup"></p></div>
  <h2>1. Draw a box around each question</h2>
  <p class="hint">Click and drag on the page. Include the question number, picture and options. Use the page buttons to reach the answer sheet and read the answers from it. Works best on a laptop.</p>
@@ -53,7 +54,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
  <div class="scroll"><div id="wrap"><canvas id="cv" width="10" height="10"></canvas><div id="ov"><div id="rb"></div></div></div></div>
  <h2>2. Fill in each question</h2><details class="box" id="imp"><summary><b>Import questions from JSON</b> <span class="hint">pasted from Claude chat</span></summary><textarea id="impt" rows="6" placeholder='{"questions":[{"number":"1","type":"mcq","topic":"Numbers up to 100","text":"…","options":["a","b","c","d"],"answer":2}]}'></textarea><button class="alt" id="impb" style="margin-top:8px">Add to the list below</button> <span class="hint" id="impm"></span></details>
  <div class="bar"><button class="ghost" id="addimg">+ Add screenshots or photos</button><button class="ghost" id="addtxt">+ Type a question</button><button class="ghost" id="sug">Suggest topics</button><span class="hint" id="sugs">Suggest topics reads each question and guesses the topic. You can also paste a screenshot with Ctrl+V.</span></div><div id="list"><p class="hint">Questions you draw appear here.</p></div>
- <div id="plist"></div><div id="alist"></div><button id="save" class="alt">Save paper</button> <button id="saveloose" class="ghost">Save without a paper</button><div id="st" aria-live="polite"></div>
+ <div id="plist"></div><div id="alist"></div><button id="save" class="alt">Save paper</button> <button id="savepaper" class="ghost">Save paper only (no questions)</button> <button id="saveloose" class="ghost">Save without a paper</button><div id="st" aria-live="polite"></div>
 </div></div>
 <div id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -79,7 +80,7 @@ async function gate(){const{data:{session}}=await sb.auth.getSession();
  const{data:t}=await sb.from('topics').select('id,level,subject,topic').order('id');topics=t||[];
  $('#gate').style.display='none';$('#main').style.display='block';$('#who').textContent=session.user.email;init();mine()}
 function init(){$('#level').innerHTML=LEVELS.map(l=>`<option ${l==='P1'?'selected':''}>${l}</option>`).join('');$('#subject').innerHTML=SUBJ.map(s=>`<option>${s}</option>`).join('');withOther('level');withOther('subject');
- ['level','year'].forEach(i=>$('#'+i).onchange=()=>{syl();list()});$('#subject').onchange=()=>{list();dupCheck()};['title','school','year','term'].forEach(i=>$('#'+i).addEventListener('input',dupCheck));$('#level').addEventListener('change',dupCheck);syl()}
+ ['level','year'].forEach(i=>$('#'+i).onchange=()=>{syl();list();fillPT()});$('#subject').onchange=()=>{list();dupCheck();fillPT()};['title','school','year','term'].forEach(i=>$('#'+i).addEventListener('input',dupCheck));$('#level').addEventListener('change',dupCheck);syl();fillPT()}
 const syllabus=()=>{const m=$('#level').value.match(/^P([1-6])$/),y=+$('#year').value;return m&&$('#subject').value==='Maths'?(y>=2020+ +m[1]?'2021':'2013'):''};
 const syl=()=>{const s=syllabus();$('#syl').textContent=s?`Syllabus tag: ${s==='2021'?'2021 syllabus':'older (2013) syllabus; some questions may differ from today'}`:''};
 /* ---- pdf ---- */
@@ -127,8 +128,9 @@ function answer(c){const A=c.ans.trim(),q='Q'+c.num+': ';
  if(c.type==='equation'){const m=A.replace(/\s/g,'').match(/^(\d+)([+\-−×x*÷\/])(\d+)=(\d+)$/);if(!m)throw q+'write it like 3 + 5 = 8';return{nums:[+m[1],+m[3]],op:m[2],res:+m[4]}}
  return A}
 async function up(b,path,file,type){const{error}=await sb.storage.from(b).upload(path,file,{contentType:type});if(error)throw error.message}
-$('#save').onclick=async()=>{const st=$('#st'),btn=$('#save');let pid=null;st.className='';
- try{const title=$('#title').value.trim();if(!title)throw'Please type a title';if(!pdfFile&&!editId)throw'Please choose the paper PDF';if(!crops.length&&!(editId&&(acrops.length||pcrops.length)))throw'Draw a box around at least one question';
+$('#save').onclick=()=>save(false);$('#savepaper').onclick=()=>save(true);
+async function save(po){const st=$('#st'),btn=$('#save');let pid=null;st.className='';
+ try{const title=$('#title').value.trim();if(!title)throw'Please type a title';if(!pdfFile&&!editId)throw'Please choose the paper PDF';if(po&&crops.length)throw'You have questions in the list. Use Save paper, or remove them first';if(!po&&!crops.length&&!(editId&&(acrops.length||pcrops.length)))throw'Draw a box around at least one question';
   crops.forEach(c=>{if(!c.topic)throw`Q${c.num}: please choose a topic`;if(c.typed&&!(c.text||'').trim())throw`Q${c.num}: please type the question`});const rows0=crops.map(c=>answer(c));
   if(dups().length&&!confirm('This looks like a paper you already saved. Save it again anyway?'))return;
   const exq=editId?(await sb.from('questions').select('id,number').eq('paper_id',editId)).data||[]:[];
@@ -139,11 +141,11 @@ $('#save').onclick=async()=>{const st=$('#st'),btn=$('#save');let pid=null;st.cl
    if(!qi.length)throw'Every page is marked as answer sheet or skip. Please keep at least one question page';
    if(ai.length||qi.length<n){const src=await PDFLib.PDFDocument.load(await pdfFile.arrayBuffer());const mk=async ix=>{const o=await PDFLib.PDFDocument.create();(await o.copyPages(src,ix)).forEach(pg=>o.addPage(pg));return new Blob([await o.save()],{type:'application/pdf'})};qPdf=await mk(qi);if(ai.length)aPdf=await mk(ai)}}
   pid=editId||uuid();st.textContent='Saving paper…';
-  const{error:e1}=editId?{}:await sb.from('papers').insert({id:pid,title,level:$('#level').value,subject:$('#subject').value,school:$('#school').value.trim()||null,year:+$('#year').value||null,term:$('#term').value.trim()||null,syllabus:syllabus()||null,visibility:$('#vis').value,pdf_path:`${pid}/paper.pdf`,answer_pdf_path:aPdf?`${pid}/answers.pdf`:null});
+  const{error:e1}=editId?{}:await sb.from('papers').insert({id:pid,title,level:$('#level').value,subject:$('#subject').value,school:$('#school').value.trim()||null,year:+$('#year').value||null,term:$('#term').value.trim()||null,syllabus:syllabus()||null,visibility:$('#vis').value,pdf_path:`${pid}/paper.pdf`,answer_pdf_path:aPdf?`${pid}/answers.pdf`:null,topic_ids:[...$('#ptopics').selectedOptions].map(o=>o.value)});
   if(e1){const m=e1.message;pid=null;throw m}
   if(!editId){await up('papers',`${pid}/paper.pdf`,qPdf,'application/pdf');if(aPdf)await up('papers',`${pid}/answers.pdf`,aPdf,'application/pdf')}
   const rows=[];for(let i=0;i<crops.length;i++){const c=crops[i],qid=uuid(),path=`${pid}/${qid}.jpg`;st.textContent=`Uploading question ${i+1} of ${crops.length}…`;if(c.blob)await up('question-images',path,c.blob,'image/jpeg');
-   rows.push({id:qid,paper_id:pid,topic_id:c.topic,source:'paper',number:c.num,qtype:c.type,prompt:c.typed?c.text.trim():'Question '+c.num,options:c.typed?optsArr(c):null,image_path:c.blob?path:null,answer_image_path:null,passage_image_path:null,answer:rows0[i],marks:+c.marks||1})}
+   rows.push({id:qid,paper_id:pid,topic_id:c.topic,source:'paper',number:c.num,qtype:c.type,prompt:c.typed?c.text.trim():'Question '+c.num,options:optsArr(c),image_path:c.blob?path:null,answer_image_path:null,passage_image_path:null,answer:rows0[i],marks:+c.marks||1})}
   for(let i=0;i<acrops.length;i++){const a=acrops[i],ap=`${pid}/a-${uuid()}.jpg`,row=rows.find(r=>String(r.number)===String(a.num)),old=row?null:exq.find(r=>String(r.number)===String(a.num));
    st.textContent=`Uploading answer picture ${i+1} of ${acrops.length}…`;await up('question-images',ap,a.blob,'image/jpeg');
    if(row)row.answer_image_path=ap;else{const{error:e3}=await sb.from('questions').update({answer_image_path:ap}).eq('id',old.id);if(e3)throw e3.message}}
@@ -152,7 +154,7 @@ $('#save').onclick=async()=>{const st=$('#st'),btn=$('#save');let pid=null;st.cl
    const ids=exq.filter(r=>inRange(s.range,r.number)).map(r=>r.id);
    if(ids.length){const{error:e4}=await sb.from('questions').update({passage_image_path:pp}).in('id',ids);if(e4)throw e4.message}}
   const{error:e2}=rows.length?await sb.from('questions').insert(rows):{};if(e2)throw e2.message;
-  st.innerHTML=`Saved ✓ ${rows.length} questions. <button class="alt" id="again">Start a new paper</button>`;$('#again').onclick=resetForm;mine()
+  resetForm();toast(po?'Saved ✓ paper added without questions':`Saved ✓ ${rows.length} question(s)`);mine()
  }catch(x){if(pid&&!editId)await sb.from('papers').delete().eq('id',pid);st.className='err';st.textContent='Problem: '+x;btn.disabled=false}};
 /* ---- topic suggestions (reads text in the picture, then matches keywords) ---- */
 const RULES=[[/o.?clock|clock|minutes|\bhours?\b|\bam\b|\bpm\b/i,/time/i],[/\$|cents?\b|coins?|dollars?|money|price/i,/money/i],[/graph|tally/i,/graph/i],
@@ -199,7 +201,7 @@ function resetForm(){['title','school','term'].forEach(i=>$('#'+i).value='');$('
  ['title','level','subject','school','year','term','vis','file'].forEach(i=>$('#'+i).disabled=false);
  crops.forEach(c=>URL.revokeObjectURL(c.url));acrops.forEach(c=>URL.revokeObjectURL(c.url));
  pcrops.forEach(c=>URL.revokeObjectURL(c.url));editId=null;base=0;pdf=null;pdfFile=null;crops=[];acrops=[];pcrops=[];kinds={};docs={};const cv=$('#cv');cv.width=10;cv.height=10;
- $('#pl').textContent='No PDF yet';$('#editb').textContent='';$('#st').textContent='';$('#save').disabled=false;$('#kind').style.display='';$('#src').style.display='none';
+ $('#pl').textContent='No PDF yet';$('#editb').textContent='';$('#st').textContent='';$('#save').disabled=false;$('#saveloose').disabled=false;$('#impt').value='';$('#impm').textContent='';$('#sugs').textContent='Suggest topics reads each question and guesses the topic. You can also paste a screenshot with Ctrl+V.';$('#dup').textContent='';$('#imp').open=false;$('#cont').checked=false;$('#mode').value='q';$('#year').value='';[...$('#ptopics').options].forEach(o=>o.selected=false);$('#kind').style.display='';$('#src').style.display='none';
  list();alist();plist();marks();dupCheck();window.scrollTo(0,0)}
 $('#newp').onclick=resetForm;
 $('#logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
@@ -257,9 +259,9 @@ async function saveLoose(){const st=$('#st'),btn=$('#saveloose');st.className=''
   if(!confirm(`Save ${crops.length} question(s) without a paper? They will be visible to all parents.`))return;
   btn.disabled=true;const rows=[];
   for(let i=0;i<crops.length;i++){const c=crops[i],qid=uuid(),path=`custom/${qid}.jpg`;st.textContent=`Saving question ${i+1} of ${crops.length}…`;if(c.blob)await up('question-images',path,c.blob,'image/jpeg');
-   rows.push({id:qid,paper_id:null,topic_id:c.topic,source:'custom',number:c.num,qtype:c.type,prompt:c.typed?c.text.trim():'Question '+c.num,options:c.typed?optsArr(c):null,image_path:c.blob?path:null,answer:ans[i],marks:+c.marks||1})}
+   rows.push({id:qid,paper_id:null,topic_id:c.topic,source:'custom',number:c.num,qtype:c.type,prompt:c.typed?c.text.trim():'Question '+c.num,options:optsArr(c),image_path:c.blob?path:null,answer:ans[i],marks:+c.marks||1})}
   const{error}=await sb.from('questions').insert(rows);if(error)throw error.message;
-  crops.forEach(c=>c.url&&URL.revokeObjectURL(c.url));crops=[];list();marks();st.textContent=`Saved ✓ ${rows.length} loose questions.`;btn.disabled=false;mine()
+  resetForm();toast(`Saved ✓ ${rows.length} loose question(s)`);mine()
  }catch(x){st.className='err';st.textContent='Problem: '+x;btn.disabled=false}}
 $('#saveloose').onclick=saveLoose;
 const fmtAns=q=>{const a=q.answer;return q.qtype==='truefalse'?(a?'true':'false'):q.qtype==='multiblank'?a.join(', '):q.qtype==='equation'?`${a.nums[0]} ${a.op} ${a.nums[1]} = ${a.res}`:String(a??'')};
@@ -309,10 +311,13 @@ $('#reada').onclick=async()=>{if(!pdf){alert('Choose a PDF first.');return}const
 async function planCrop(it,b0){if(pageNo!==it.page){pageNo=it.page;await render()}const cv=$('#cv'),[fx,fy,fw,fh]=it.box,w=fw*cv.width,h=fh*cv.height,o=document.createElement('canvas');o.width=Math.round(w);o.height=Math.round(h);
  o.getContext('2d').drawImage(cv,fx*cv.width,fy*cv.height,w,h,0,0,o.width,o.height);$('#mode').value='q';$('#cont').checked=false;await addCrop(o,[fx,fy,fw,fh]);Object.assign(crops[crops.length-1],b0)}
 $('#impb').onclick=async()=>{const m=$('#impm');try{const j=JSON.parse($('#impt').value.trim().replace(/^\s*```(?:json)?/i,'').replace(/```\s*$/,'')),items=Array.isArray(j)?j:(j.questions||[]);if(!items.length)throw'No questions found in that text';
+ if(j.paper){const P=j.paper;if(P.level)setSel('level',P.level);if(P.subject)setSel('subject',P.subject);['title','school','year','term'].forEach(k=>{if(P[k]!=null)$('#'+k).value=P[k]});syl();dupCheck()}
  const lv=$('#level').value,sj=$('#subject').value,tp=x=>{const t=topics.find(t=>t.level===lv&&t.subject===sj&&(t.id===x||norm(t.topic)===norm(x)))||topics.find(t=>t.id===x);return t?t.id:''};
- let a=0,pl=0,miss=0;for(const it of items){const b0={num:String(it.number??base+crops.length+1),topic:tp(it.topic),type:it.type||'mcq',ans:Array.isArray(it.answer)?it.answer.join(', '):String(it.answer??''),marks:it.marks||1};if(it.topic&&!b0.topic)miss++;
+ let a=0,pl=0,miss=0;for(const it of items){const b0={num:String(it.number??base+crops.length+1),topic:tp(it.topic),type:it.type||'mcq',ans:Array.isArray(it.answer)?it.answer.join(', '):String(it.answer??''),marks:it.marks||1,opts:(it.options||[]).join('\n')};if(it.topic&&!b0.topic)miss++;
   if(it.page&&it.box){if(!pdf)throw'Items with page boxes need the paper PDF opened first';if(it.page<1||it.page>pdf.numPages)throw`Page ${it.page} is not in this PDF`;await planCrop(it,b0);pl++}
   else{crops.push({...blank(),...b0,typed:true,text:it.text||'',opts:(it.options||[]).join('\n'),blob:null,url:''});a++}}
+ if(j.pages&&pdf){for(const[k,v]of Object.entries(j.pages))kinds[k]=v;$('#kind').value=kinds[pageNo]||'q'}
  list();marks();m.textContent=`Added ${a} typed and ${pl} boxed question(s).${miss?` ${miss} topic name(s) were not found, please choose them by hand.`:''}`}catch(x){m.textContent='Problem: '+x}};
+function fillPT(){const lv=$('#level').value,sj=$('#subject').value;$('#ptopics').innerHTML=topics.filter(t=>t.level===lv&&t.subject===sj).map(t=>`<option value="${t.id}">${esc(t.topic)}</option>`).join('')}
 gate();
 </script></body></html>
