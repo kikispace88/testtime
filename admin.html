@@ -34,6 +34,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="main" style="display:none">
  <div class="bar" style="justify-content:flex-end"><span class="hint" id="who"></span><button class="ghost" id="newp">New paper</button><button class="ghost" id="logout">Log out</button></div>
  <details class="box" id="saved"><summary><b id="savedt">Papers already saved</b></summary><input id="pq" placeholder="Search by title, school, year…" style="margin:8px 0"><div id="mine"><p class="hint">Loading…</p></div></details>
+ <details class="box" id="tm"><summary><b>Manage topics</b> <span class="hint">rename, add, merge or delete</span></summary>
+  <div class="bar" style="margin-top:8px"><select id="tml" style="width:auto"></select><select id="tms" style="width:auto"></select></div>
+  <div id="tml-list"></div>
+  <div class="bar"><input id="tnew" placeholder="New topic name" style="flex:1;min-width:180px"><button class="alt" id="tadd">Add topic</button></div></details>
+ <details class="box" id="tidy"><summary><b>Storage tidy-up</b> <span class="hint">remove old PDFs, keep the cropped questions and answers</span></summary>
+  <div class="bar" style="margin-top:8px"><label style="font-weight:600">Remove PDFs of papers from years before <input id="cut" type="number" style="width:110px;display:inline-block"></label><button class="ghost" id="tprev">Preview</button></div><div id="tout"></div></details>
  <div class="box"><div class="grid">
   <label>Title<input id="title" placeholder="Nanyang P1 Maths CT1 2018"></label>
   <label>Level<select id="level"></select></label>
@@ -80,7 +86,7 @@ async function gate(){const{data:{session}}=await sb.auth.getSession();
  const{data:t}=await sb.from('topics').select('id,level,subject,topic').order('id');topics=t||[];
  $('#gate').style.display='none';$('#main').style.display='block';$('#who').textContent=session.user.email;init();mine()}
 function init(){$('#level').innerHTML=LEVELS.map(l=>`<option ${l==='P1'?'selected':''}>${l}</option>`).join('');$('#subject').innerHTML=SUBJ.map(s=>`<option>${s}</option>`).join('');withOther('level');withOther('subject');
- ['level','year'].forEach(i=>$('#'+i).onchange=()=>{syl();list();fillPT()});$('#subject').onchange=()=>{list();dupCheck();fillPT()};['title','school','year','term'].forEach(i=>$('#'+i).addEventListener('input',dupCheck));$('#level').addEventListener('change',dupCheck);syl();fillPT()}
+ ['level','year'].forEach(i=>$('#'+i).onchange=()=>{syl();list();fillPT()});$('#subject').onchange=()=>{list();dupCheck();fillPT()};['title','school','year','term'].forEach(i=>$('#'+i).addEventListener('input',dupCheck));$('#level').addEventListener('change',dupCheck);syl();fillPT();tmInit()}
 const syllabus=()=>{const m=$('#level').value.match(/^P([1-6])$/),y=+$('#year').value;return m&&$('#subject').value==='Maths'?(y>=2020+ +m[1]?'2021':'2013'):''};
 const syl=()=>{const s=syllabus();$('#syl').textContent=s?`Syllabus tag: ${s==='2021'?'2021 syllabus':'older (2013) syllabus; some questions may differ from today'}`:''};
 /* ---- pdf ---- */
@@ -176,7 +182,7 @@ async function wipe(pid){for(const b of['papers','question-images']){const{data}
 async function showQs(pid){const qq=sb.from('questions').select('id,number,topic_id,qtype,image_path,prompt'),{data}=await(pid==='custom'?qq.is('paper_id',null).eq('source','custom'):qq.eq('paper_id',pid));
  $('#q-'+pid).innerHTML=(data||[]).sort((a,b)=>String(a.number).localeCompare(String(b.number),undefined,{numeric:true})).map(q=>`<div class="bar hint">Q${esc(q.number)} - ${q.qtype} - ${esc(q.topic_id||'no topic')} <button class="ghost" data-eq="${q.id}">Edit</button> <button class="ghost" data-delq="${q.id}" data-path="${esc(q.image_path||'')}" data-pid="${pid}">Delete</button></div><div id="eq-${q.id}"></div>`).join('')||'<p class="hint">No questions.</p>'}
 async function addMore(pid){const{data:p}=await sb.from('papers').select('*').eq('id',pid).single();if(!p)return;
- const{data:blob,error}=await sb.storage.from('papers').download(p.pdf_path);if(error){alert('Could not open the PDF: '+error.message);return}
+ if(!p.pdf_path){alert('This paper\'s PDF was removed to save space, so new questions cannot be cropped from it. Use Add screenshots instead.');return}const{data:blob,error}=await sb.storage.from('papers').download(p.pdf_path);if(error){alert('Could not open the PDF: '+error.message);return}
  const{count}=await sb.from('questions').select('id',{count:'exact',head:true}).eq('paper_id',pid);
  editId=pid;base=count||0;pdfFile=null;$('#title').value=p.title;setSel('level',p.level);setSel('subject',p.subject);$('#school').value=p.school||'';$('#year').value=p.year||'';$('#term').value=p.term||'';$('#vis').value=p.visibility;
  ['title','level','subject','school','year','term','vis','file'].forEach(i=>$('#'+i).disabled=true);
@@ -319,5 +325,32 @@ $('#impb').onclick=async()=>{const m=$('#impm');try{const j=JSON.parse($('#impt'
  if(j.pages&&pdf){for(const[k,v]of Object.entries(j.pages))kinds[k]=v;$('#kind').value=kinds[pageNo]||'q'}
  list();marks();m.textContent=`Added ${a} typed and ${pl} boxed question(s).${miss?` ${miss} topic name(s) were not found, please choose them by hand.`:''}`}catch(x){m.textContent='Problem: '+x}};
 function fillPT(){const lv=$('#level').value,sj=$('#subject').value;$('#ptopics').innerHTML=topics.filter(t=>t.level===lv&&t.subject===sj).map(t=>`<option value="${t.id}">${esc(t.topic)}</option>`).join('')}
+/* ---- manage topics ---- */
+let TU={};
+function tmInit(){const cy=new Date().getFullYear();$('#tml').innerHTML=LEVELS.map(l=>`<option ${l==='P1'?'selected':''}>${l}</option>`).join('');$('#tms').innerHTML=SUBJ.map(s=>`<option>${s}</option>`).join('');
+ $('#tml').onchange=$('#tms').onchange=tmLoad;$('#tm').addEventListener('toggle',()=>{if($('#tm').open)tmLoad()});$('#cut').value=cy-4;$('#tidy').addEventListener('toggle',()=>{$('#tout').textContent=''})}
+async function tmLoad(){const lv=$('#tml').value,sj=$('#tms').value,{data:u}=await sb.rpc('topic_usage');TU={};(u||[]).forEach(r=>TU[r.topic_id]=r);
+ const ts=topics.filter(t=>t.level===lv&&t.subject===sj);
+ $('#tml-list').innerHTML=ts.map(t=>{const x=TU[t.id]||{questions:0,attempts:0};return`<div class="bar"><input data-tid="${t.id}" value="${esc(t.topic)}" style="flex:1;min-width:180px"><span class="hint">${x.questions} questions, ${x.attempts} answers</span><button class="ghost" data-tsave="${t.id}">Save name</button><button class="ghost" data-tmerge="${t.id}">Merge into…</button><button class="ghost" data-tdel="${t.id}">Delete</button></div>`}).join('')||'<p class="hint">No topics yet for this level and subject.</p>'}
+$('#tml-list').onclick=async e=>{const d=e.target.dataset,lv=$('#tml').value,sj=$('#tms').value;
+ if(d.tsave){const v=$('#tml-list input[data-tid="'+d.tsave+'"]').value.trim();if(!v)return;const{error}=await sb.from('topics').update({topic:v}).eq('id',d.tsave);if(error)return alert(error.message);topics.find(t=>t.id===d.tsave).topic=v;list();fillPT();toast('Saved ✓ topic renamed')}
+ else if(d.tdel){const x=TU[d.tdel]||{questions:0,attempts:0};if(+x.questions||+x.attempts)return alert(`This topic is used by ${x.questions} questions and ${x.attempts} answers. Use "Merge into…" to move them to another topic first.`);
+  if(!confirm('Delete this topic?'))return;const{error}=await sb.from('topics').delete().eq('id',d.tdel);if(error)return alert(error.message);topics=topics.filter(t=>t.id!==d.tdel);list();fillPT();tmLoad();toast('Deleted ✓')}
+ else if(d.tmerge){const others=topics.filter(t=>t.level===lv&&t.subject===sj&&t.id!==d.tmerge);if(!others.length)return alert('There is no other topic to merge into.');
+  const a=prompt('Merge into which topic? Type its number:\n'+others.map((t,i)=>`${i+1}. ${t.topic}`).join('\n'));const t=others[(parseInt(a)||0)-1];if(!t)return;
+  const src=topics.find(x=>x.id===d.tmerge);if(!confirm(`Move everything from "${src.topic}" into "${t.topic}" and delete "${src.topic}"?`))return;
+  const{error}=await sb.rpc('merge_topic',{src:d.tmerge,dst:t.id});if(error)return alert(error.message);topics=topics.filter(x=>x.id!==d.tmerge);list();fillPT();tmLoad();toast('Merged ✓')}};
+$('#tadd').onclick=async()=>{const n=$('#tnew').value.trim(),lv=$('#tml').value,sj=$('#tms').value;if(!n)return;const row={id:`${norm(lv)}-${norm(sj)}-${norm(n)}`,level:lv,subject:sj,topic:n};
+ const{error}=await sb.from('topics').upsert(row);if(error)return alert(error.message);if(!topics.some(t=>t.id===row.id))topics.push(row);$('#tnew').value='';list();fillPT();tmLoad();toast('Added ✓')};
+/* ---- storage tidy-up: remove old PDFs, keep cropped questions ---- */
+$('#tprev').onclick=async()=>{const cut=+$('#cut').value,o=$('#tout');if(!cut){o.textContent='Type a year.';return}o.textContent='Checking…';
+ const{data:ps,error}=await sb.from('papers').select('id,title,year,pdf_path,answer_pdf_path').lt('year',cut).not('pdf_path','is',null);if(error){o.textContent=error.message;return}
+ if(!ps.length){o.innerHTML='<p class="hint">No papers from before that year still have PDFs.</p>';return}
+ let tot=0;const rows=[];for(const p of ps){const{data:f}=await sb.storage.from('papers').list(p.id,{limit:100});const s=(f||[]).reduce((a,x)=>a+((x.metadata&&x.metadata.size)||0),0);tot+=s;rows.push(`<div class="hint">${esc(p.title)} (${p.year}), ${(s/1048576).toFixed(1)} MB</div>`)}
+ o.innerHTML=rows.slice(0,40).join('')+(rows.length>40?`<div class="hint">…and ${rows.length-40} more</div>`:'')+`<p><b>${ps.length} papers, about ${(tot/1048576).toFixed(1)} MB freed.</b> The cropped questions and answer pictures stay. Parents can no longer print these papers.</p><button class="alt" id="tgo">Remove these PDFs</button>`;
+ $('#tgo').onclick=async()=>{if(!confirm(`Delete the PDFs of ${ps.length} papers? This cannot be undone.`))return;let n=0;
+  for(const p of ps){const{error:e1}=await sb.storage.from('papers').remove([p.pdf_path,p.answer_pdf_path].filter(Boolean));if(e1){alert(e1.message);break}
+   const{error:e2}=await sb.from('papers').update({pdf_path:null,answer_pdf_path:null}).eq('id',p.id);if(e2){alert(e2.message);break}n++;o.textContent=`Removed ${n} of ${ps.length}…`}
+  toast(`Done ✓ ${n} paper PDFs removed`);o.textContent='';mine()}};
 gate();
 </script></body></html>
