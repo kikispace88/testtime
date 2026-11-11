@@ -44,7 +44,7 @@ input{font:inherit;font-size:1.2rem;width:100%;padding:12px;border:3px solid var
 #fb{min-height:60px;margin:12px 0 4px;font-size:1.1rem;font-weight:600}#fb.ok{color:var(--mint)}#fb.no{color:var(--coral)}
 .score{text-align:center;font-size:4.2rem;margin:.1em 0}.stars{text-align:center;font-size:2.2rem}
 .pg{margin:10px 0}.pg div{display:flex;justify-content:space-between;font-size:.95rem}.pb{height:14px;background:var(--line);border-radius:8px;overflow:hidden}.pb i{display:block;height:100%;background:var(--mint)}.pb i.w{background:var(--coral)}
-a.card{text-decoration:none;color:inherit}a{color:var(--ink)}
+a.card{text-decoration:none;color:inherit}.ak p{margin:12px 0 4px}.expl{background:var(--card);border-radius:14px;padding:10px 14px;margin:10px 0;text-align:left}.expl summary{cursor:pointer;font-weight:700}a{color:var(--ink)}
 select{font:inherit;font-size:1rem;padding:8px 10px;border:2px solid var(--ink);border-radius:12px;background:var(--card);color:var(--ink)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chip{border:2px solid var(--ink);background:var(--card);border-radius:999px;padding:7px 14px}.chip.on{background:var(--sun);color:#1d2b53;font-weight:700}
 .grp{margin:10px 0}.grp summary{cursor:pointer;padding:12px 4px;font-size:1.1rem}.grp summary span{opacity:.7;font-size:.9rem;margin-left:6px}
@@ -184,7 +184,7 @@ ${n?`<button class="card alt" id="do"><b>Do it on screen</b><span>${n} questions
 ${u[p.pdf_path]?`<a class="card" href="${u[p.pdf_path]}" target="_blank" rel="noopener" onclick="track('print_pdf')"><b>🖨 Print the paper</b><span>PDF for hard copy</span></a>`:''}
 ${p.answer_pdf_path&&u[p.answer_pdf_path]?`<a class="card" href="${u[p.answer_pdf_path]}" target="_blank" rel="noopener" onclick="track('answers_pdf')"><b>Answer sheet (for parents)</b><span>PDF</span></a>`:''}`;
  if(n)$('#do').onclick=()=>startPaper(p)}
-async function sign(qs){const ps=[...new Set(qs.flatMap(x=>x.src==='paper'?[x.q.image_path,x.q.passage_image_path,x.q.answer_image_path]:[]).filter(Boolean))];
+async function sign(qs){const ps=[...new Set(qs.flatMap(x=>x.src==='paper'?[x.q.image_path,x.q.passage_image_path,x.q.answer_image_path,x.q.explanation_image_path]:[]).filter(Boolean))];
  for(let i=0;i<ps.length;i+=100){const{data}=await sb.storage.from('question-images').createSignedUrls(ps.slice(i,i+100),3600);(data||[]).forEach(d=>{if(d.signedUrl)URLS[d.path]=d.signedUrl})}}
 const noQ=()=>{app.innerHTML='<p style="text-align:center;margin-top:25vh">No questions here yet.</p><button class="primary" onclick="home()">Back</button>'};
 async function start(tids,label){app.innerHTML=LOAD;track('start_practice',{topics:tids});const{data}=await sb.from('questions').select('*').in('source',['paper','custom','generated']).in('topic_id',tids).limit(300);
@@ -200,7 +200,7 @@ function ask(){const r=S.run,x=r.qs[r.i];r.done=false;r.shown=false;r.sel=TY(x)=
  app.innerHTML=`<div class="bar"><i style="width:${r.i/r.qs.length*100}%"></i></div>
 <div class="top"><button class="x" onclick="home()" aria-label="Quit">✕</button><span>${esc(r.label)}</span><span>${r.i+1} of ${r.qs.length}</span></div>
 ${x.src==='gen'?`<h2>${x.g.q}</h2><div class="vis">${x.g.pic||''}</div>`:`${img(x.q.passage_image_path)}${ptxt(x.q)}${img(x.q.image_path)}`}
-<div id="in"></div><div id="fb" aria-live="polite"></div><button id="go" class="primary" disabled onclick="go()">${TY(x)==='open'?'Show answer':'Check'}</button>`;draw()}
+<div id="in"></div><div id="fb" aria-live="polite"></div><div id="ak"></div><button id="go" class="primary" disabled onclick="go()">${TY(x)==='open'?'Show answer':'Check'}</button>`;draw()}
 function draw(){const r=S.run,x=r.qs[r.i],t=TY(x),a=AN(x),d=$('#in');
  if(t==='mcq'){const g=x.src==='gen',ot=!g&&Array.isArray(x.q.options)&&x.q.options.length?x.q.options:null,lst=g||ot,c=g?a:a-1,o=g?x.g.o:(ot||['1','2','3','4']);d.innerHTML=(lst?'':'<div class="tiles">')+o.map((s,k)=>`<button class="opt ${r.done?(k===c?'good':k===r.sel?'bad':''):(r.sel===k?'on':'')}" ${r.done?'disabled':''} onclick="S.run.sel=${k};draw()">${lst?`<i>${k+1}</i>${g?s:esc(s)}`:s}</button>`).join('')+(lst?'':'</div>')}
  else if(t==='truefalse')d.innerHTML='<div class="tiles">'+[true,false].map(v=>`<button class="opt ${r.done?(v===a?'good':v===r.sel?'bad':''):(r.sel===v?'on':'')}" ${r.done?'disabled':''} onclick="S.run.sel=${v};draw()">${v?'True':'False'}</button>`).join('')+'</div>';
@@ -220,13 +220,15 @@ function check(x){const r=S.run,t=TY(x),a=AN(x);
  return false}
 function show(x){const t=TY(x),a=AN(x);return t==='mcq'?(x.src==='gen'?x.g.o[a]:(Array.isArray(x.q.options)&&x.q.options.length?x.q.options[a-1]:'option '+a)):t==='truefalse'?(a?'True':'False'):t==='multiblank'?a.join(', '):t==='equation'?`${a.nums[0]} ${a.op} ${a.nums[1]} = ${a.res}`:String(a)}
 function record(x,ok){const r=S.run;r.saves.push(sb.from('attempts').insert({child_id:S.kid.id,question_id:x.src==='paper'?x.q.id:null,template_id:x.src==='gen'?x.g.id:null,topic_id:x.src==='gen'?TOPIC[x.g.id]:x.q.topic_id,correct:ok,response:{sel:r.sel,eq:r.eq,bl:r.bl}}).then(z=>z.error?1:0,()=>1))}
-function go(){const r=S.run,x=r.qs[r.i],t=TY(x),fb=$('#fb'),b=$('#go');
- if(t==='open'&&!r.shown){r.shown=true;const q=x.q;fb.className='';fb.innerHTML=`${img(q.answer_image_path)}${typeof q.answer==='string'&&q.answer?`<p>Answer: <b>${esc(q.answer)}</b></p>`:''}<p>Did you get it right?</p>`;b.style.display='none';
-  fb.insertAdjacentHTML('afterend','<div id="sm"><button class="primary" onclick="selfMark(1)">✅ I got it right</button><button class="mini" style="margin-top:10px" onclick="selfMark(0)">Not yet</button></div>');return}
- if(!r.done){r.done=true;const ok=check(x);record(x,ok);if(ok)r.score++;fb.className=ok?'ok':'no';
-  fb.innerHTML=(ok?'🎉 Correct! Well done!':`Not quite. The answer is <b>${esc(show(x))}</b>`)+(x.src==='paper'&&x.q.answer_image_path?`<p style="margin:10px 0 2px;font-weight:600">Answer key</p>${img(x.q.answer_image_path)}`:'');
-  if(t==='mcq'||t==='truefalse')draw();else $('#in').classList.add('lock');
-  b.textContent=r.i===r.qs.length-1?'See my score':'Next question';b.disabled=false}else next()}
+const nl=s=>esc(s).replace(/\n/g,'<br>');
+function akHTML(x){if(x.src!=='paper')return`<div class="ak"><p><b>Answer:</b> ${esc(show(x))}</p></div>`;
+ const q=x.q,at=(q.answer_text||'').trim(),ans=at?nl(at):esc(show(x)),ex=(q.explanation_text||'').trim(),ei=q.explanation_image_path;
+ return`<div class="ak">${ans?`<p><b>Answer:</b> ${ans}</p>`:''}${img(q.answer_image_path)}</div>`+(ex||ei?`<details class="expl"><summary>💡 Show explanation</summary>${ex?`<p class="qtxt">${esc(ex)}</p>`:''}${img(ei)}</details>`:'')}
+function go(){const r=S.run,x=r.qs[r.i],t=TY(x),fb=$('#fb'),ak=$('#ak'),b=$('#go');
+ if(t==='open'&&!r.shown){r.shown=true;fb.className='';fb.innerHTML='';ak.innerHTML=akHTML(x);b.style.display='none';
+  ak.insertAdjacentHTML('afterend','<p>Did you get it right?</p><div id="sm"><button class="primary" onclick="selfMark(1)">✅ I got it right</button><button class="mini" style="margin-top:10px" onclick="selfMark(0)">Not yet</button></div>');return}
+ if(!r.done){r.done=true;const ok=check(x);record(x,ok);if(ok)r.score++;fb.className=ok?'ok':'no';fb.innerHTML=ok?'🎉 Correct! Well done!':'Not quite. Have a look at the answer.';ak.innerHTML=akHTML(x);
+  if(t==='mcq'||t==='truefalse')draw();else $('#in').classList.add('lock');b.textContent=r.i===r.qs.length-1?'See my score':'Next question';b.disabled=false}else next()}
 function selfMark(ok){const r=S.run;record(r.qs[r.i],!!ok);if(ok)r.score++;next()}
 function next(){const r=S.run;r.i<r.qs.length-1?(r.i++,ask()):finish()}
 async function finish(){const r=S.run;track('finish',{score:r.score,total:r.qs.length,label:r.label});app.innerHTML=LOAD;const bad=(await Promise.all(r.saves)).reduce((a,b)=>a+b,0),pc=r.score/r.qs.length;
