@@ -26,7 +26,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .qc{display:grid;grid-template-columns:minmax(120px,240px) 1fr;gap:12px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:10px;margin:10px 0}
 .qc img{width:100%;border:1px solid var(--line);border-radius:8px;align-self:start}
 .qc .f{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end}
-#st{font-weight:700;margin:10px 0;min-height:1.4em}.err{color:var(--bad)}summary{cursor:pointer}.qc2{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px;margin:12px 0}.pt{border-top:1px solid var(--line);padding:8px 0;margin-top:8px}.pimg{max-width:100%;max-height:260px;border:1px solid var(--line);border-radius:8px;display:block;margin:6px 0}#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1d2b53;color:#fff;padding:10px 18px;border-radius:12px;display:none;z-index:9}.mk.ak{border-color:#f59e0b;background:rgba(245,158,11,.15)}.mk.ak b{background:#f59e0b}.mk.pk{border-color:#3b82f6;background:rgba(59,130,246,.15)}.mk.pk b{background:#3b82f6}
+#st{font-weight:700;margin:10px 0;min-height:1.4em}.err{color:var(--bad)}summary{cursor:pointer}.qc2{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px;margin:12px 0}.pt{border-top:1px solid var(--line);padding:8px 0;margin-top:8px}.pimg{max-width:100%;max-height:260px;border:1px solid var(--line);border-radius:8px;display:block;margin:6px 0}#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1d2b53;color:#fff;padding:10px 18px;border-radius:12px;display:none;z-index:9}.mk.ak{border-color:#f59e0b;background:rgba(245,158,11,.15)}.mk.ak b{background:#f59e0b}.mk.pk{border-color:#3b82f6;background:rgba(59,130,246,.15)}.mk.pk b{background:#3b82f6}.mk.ek{border-color:#a855f7;background:rgba(168,85,247,.15)}.mk.ek b{background:#a855f7}
 @media(max-width:560px){.qc{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
 <h1>Add a paper</h1>
@@ -39,7 +39,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <div id="tml-list"></div>
   <div class="bar"><input id="tnew" placeholder="New topic name" style="flex:1;min-width:180px"><button class="alt" id="tadd">Add topic</button></div></details>
  <details class="box" id="tidy"><summary><b>Storage tidy-up</b> <span class="hint">remove old PDFs, keep the cropped questions and answers</span></summary>
-  <div class="bar" style="margin-top:8px"><label style="font-weight:600">Remove PDFs of papers from years before <input id="cut" type="number" style="width:110px;display:inline-block"></label><button class="ghost" id="tprev">Preview</button></div><div id="tout"></div></details>
+  <div class="bar" style="margin-top:8px"><label style="font-weight:600">Remove PDFs of papers from years before <input id="cut" type="number" style="width:110px;display:inline-block"></label><button class="ghost" id="tprev">Preview</button></div><div id="tout"></div>
+  <div class="pt"><b>Shrink saved pictures</b> <span class="hint">about half the size, a little softer</span>
+   <div class="bar" style="margin-top:6px"><label style="font-weight:600;display:flex;gap:6px;align-items:center"><input type="checkbox" id="sgrey" checked style="width:auto;margin:0"> Greyscale</label><button class="ghost" id="sest">Estimate on 10 pictures</button><button class="alt" id="sgo">Shrink all pictures</button><button class="ghost" id="sstop" style="display:none">Stop</button></div><div id="sout" class="hint"></div></div></details>
  <div class="box"><div class="grid">
   <label>Title<input id="title" placeholder="Nanyang P1 Maths CT1 2018"></label>
   <label>Level<select id="level"></select></label>
@@ -55,7 +57,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
  <p class="hint">Click and drag on the page. Include the question number, picture and options. Use the page buttons to reach the answer sheet and read the answers from it. Works best on a laptop.</p>
  <div class="bar"><button class="ghost" id="prev">← Prev</button><b id="pl">No PDF yet</b><button class="ghost" id="next">Next →</button>
   <button class="ghost" id="auto">Auto-find questions on this page</button><button class="ghost" id="reada">Read answers from this page</button><button class="ghost" id="addpdf">+ Add another PDF</button><label class="hint" style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="cont" style="width:auto;margin:0"> Next box continues the previous one (flows over a page)</label><select id="kind" style="width:auto"><option value="q">This page: question page</option><option value="a">This page: answer sheet</option><option value="x">This page: skip (blank)</option></select>
-  <select id="mode" style="width:auto"><option value="q">Drawing: a question</option><option value="a">Drawing: an answer picture</option><option value="p">Drawing: a shared picture or passage</option></select>
+  <select id="mode" style="width:auto"><option value="q">Drawing: a question</option><option value="a">Drawing: an answer picture</option><option value="p">Drawing: a shared picture or passage</option><option value="e">Drawing: an explanation picture</option></select><input id="tgt" placeholder="for question no. (optional)" style="width:170px" aria-label="Question number for the answer or explanation picture">
   <select id="src" style="width:auto;display:none"><option value="q">Showing: question pages</option><option value="a">Showing: answer sheet</option></select></div>
  <div class="scroll"><div id="wrap"><canvas id="cv" width="10" height="10"></canvas><div id="ov"><div id="rb"></div></div></div></div>
  <h2>2. Fill in each question</h2><details class="box" id="imp"><summary><b>Import questions from JSON</b> <span class="hint">pasted from Claude chat</span></summary><textarea id="impt" rows="6" placeholder='{"questions":[{"number":"1","type":"mcq","topic":"Numbers up to 100","text":"…","options":["a","b","c","d"],"answer":2}]}'></textarea><button class="alt" id="impb" style="margin-top:8px">Add to the list below</button> <span class="hint" id="impm"></span></details>
@@ -96,7 +98,7 @@ async function render(){const pg=await pdf.getPage(pageNo),vp=pg.getViewport({sc
  await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;$('#pl').textContent=`Page ${pageNo} of ${pdf.numPages}`;$('#kind').value=kinds[pageNo]||'q';marks()}
 $('#prev').onclick=()=>{if(pdf&&pageNo>1){pageNo--;render()}};$('#next').onclick=()=>{if(pdf&&pageNo<pdf.numPages){pageNo++;render()}};
 function marks(){document.querySelectorAll('.mk').forEach(x=>x.remove());
- [...crops.map(c=>({c,a:0,t:c.num})),...acrops.map(c=>({c,a:1,t:c.num})),...pcrops.map(c=>({c,a:2,t:c.range||'?'}))].forEach(({c,a,t})=>(c.segs||[c]).forEach(s=>{if(s.page!==pageNo||s.view!==(docs.cur||'q'))return;const d=document.createElement('div');d.className='mk'+(a===1?' ak':a===2?' pk':'');d.style.cssText=`left:${s.f[0]*100}%;top:${s.f[1]*100}%;width:${s.f[2]*100}%;height:${s.f[3]*100}%`;d.innerHTML=`<b>${esc(t)}</b>`;$('#ov').appendChild(d)}))}
+ [...crops.map(c=>({c,a:0,t:c.num})),...acrops.map(c=>({c,a:1,t:c.num})),...pcrops.map(c=>({c,a:2,t:c.range||'?'})),...crops.filter(c=>c.asegs).map(c=>({c:{segs:c.asegs},a:1,t:c.num+' ans'})),...crops.filter(c=>c.esegs).map(c=>({c:{segs:c.esegs},a:3,t:c.num+' exp'}))].forEach(({c,a,t})=>(c.segs||[c]).forEach(s=>{if(s.page!==pageNo||s.view!==(docs.cur||'q'))return;const d=document.createElement('div');d.className='mk'+(a===1?' ak':a===2?' pk':a===3?' ek':'');d.style.cssText=`left:${s.f[0]*100}%;top:${s.f[1]*100}%;width:${s.f[2]*100}%;height:${s.f[3]*100}%`;d.innerHTML=`<b>${esc(t)}</b>`;$('#ov').appendChild(d)}))}
 /* ---- drawing boxes ---- */
 const ov=$('#ov'),rb=$('#rb');
 const pt=e=>{const r=ov.getBoundingClientRect();return[Math.min(Math.max(e.clientX-r.left,0),r.width),Math.min(Math.max(e.clientY-r.top,0),r.height),r.width,r.height]};
@@ -229,7 +231,16 @@ async function mergeFiles(files){if(files.length===1)return files[0];const out=a
 $('#addpdf').onclick=()=>{if(editId){alert('For a saved paper, use Replace question PDF or Replace answer PDF in Papers already saved.');return}if(!pdfFile){alert('Choose the paper PDF first.');return}
  const i=document.createElement('input');i.type='file';i.accept='application/pdf';i.multiple=true;
  i.onchange=async()=>{if(!i.files.length)return;try{pdfFile=await mergeFiles([pdfFile,...i.files]);pdf=await pdfjsLib.getDocument({data:await pdfFile.arrayBuffer()}).promise;await render()}catch(x){$('#st').innerHTML='<span class="err">Could not add that PDF.</span>'}};i.click()};
-async function addCrop(o,f){const mode=$('#mode').value,arr=mode==='p'?pcrops:mode==='a'?acrops:crops,view=docs.cur||'q',last=arr[arr.length-1],jpg=enc;
+const LT={a:null,e:null};
+async function addCrop(o,f){const mode=$('#mode').value,view=docs.cur||'q',seg={page:pageNo,view,f};
+ if((mode==='a'||mode==='e')&&crops.length){const K=KEYS[mode],sk=mode==='a'?'asegs':'esegs',cont=$('#cont').checked,tg=($('#tgt').value||'').trim().toLowerCase();
+  let t=tg?crops.find(c=>String(c.num).toLowerCase()===tg):(cont&&LT[mode]&&crops.includes(LT[mode])?LT[mode]:(crops.find(c=>!c[K.b])||crops[crops.length-1])),b;
+  if(!t){alert('No question has that number.');return}
+  if(cont&&t[K.b]&&LT[mode]===t){const prev=await createImageBitmap(t[K.b]),c2=document.createElement('canvas');c2.width=Math.max(prev.width,o.width);c2.height=prev.height+o.height;const x=c2.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c2.width,c2.height);x.drawImage(prev,0,0);x.drawImage(o,0,prev.height);b=await enc(c2);t[sk]=(t[sk]||[]).concat([seg])}
+  else{b=await enc(o);t[sk]=[seg]}
+  if(t[K.u])URL.revokeObjectURL(t[K.u]);t[K.b]=b;t[K.u]=URL.createObjectURL(b);LT[mode]=t;$('#cont').checked=false;list();marks();return}
+ if(mode==='e'){alert('Add the question first, then draw its explanation.');return}
+ const arr=mode==='p'?pcrops:mode==='a'?acrops:crops,last=arr[arr.length-1],jpg=enc;
  if($('#cont').checked&&last){const prev=await createImageBitmap(last.blob),c2=document.createElement('canvas');c2.width=Math.max(prev.width,o.width);c2.height=prev.height+o.height;
   const x=c2.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c2.width,c2.height);x.drawImage(prev,0,0);x.drawImage(o,0,prev.height);
   const b=await jpg(c2);URL.revokeObjectURL(last.url);last.blob=b;last.url=URL.createObjectURL(b);last.segs=(last.segs||[{page:last.page,view:last.view,f:last.f}]).concat([{page:pageNo,view,f}]);$('#cont').checked=false}
@@ -383,5 +394,25 @@ async function readText(i,part,btn){const K=KEYS[part],c=crops[i];if(!c||!c[K.b]
  }catch(x){alert('Could not read the picture. Please type it.');btn.disabled=false;btn.textContent='Read text from picture'}}
 async function eRead(spec,btn){const[fid,tid]=spec.split('|'),f=$('#'+fid).files[0];if(!f){alert('Choose a picture first.');return}const t0=btn.textContent;btn.disabled=true;btn.textContent='Reading…';
  try{const w=await Tesseract.createWorker('eng'),r=await w.recognize(f);await w.terminate();$('#'+tid).value=r.data.text.trim()}catch(x){alert('Could not read the picture.')}btn.disabled=false;btn.textContent=t0}
+/* ---- shrink pictures that are already saved ---- */
+let SSTOP=false;
+async function allPaths(){const out=new Set(),ks=['image_path','answer_image_path','passage_image_path','explanation_image_path'];let from=0;
+ for(;;){const{data,error}=await sb.from('questions').select(ks.join(',')).order('id').range(from,from+999);if(error)throw error.message;(data||[]).forEach(q=>ks.forEach(k=>q[k]&&out.add(q[k])));if(!data||data.length<1000)break;from+=1000}return[...out]}
+async function shrinkOne(path,grey,dry){const{data:blob,error}=await sb.storage.from('question-images').download(path);if(error)throw error.message;
+ if(blob.size<20000)return{skip:true,old:blob.size,neu:blob.size};
+ const bm=await createImageBitmap(blob),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bm.width*.75));c.height=Math.max(1,Math.round(bm.height*.75));
+ const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);if(grey)x.filter='grayscale(1)';x.drawImage(bm,0,0,c.width,c.height);
+ const nb=await new Promise(r=>c.toBlob(r,'image/jpeg',.7));if(nb.size>=blob.size*.85)return{skip:true,old:blob.size,neu:blob.size};
+ if(!dry){const{error:e2}=await sb.storage.from('question-images').upload(path,nb,{contentType:'image/jpeg',upsert:true});if(e2)throw e2.message}
+ return{skip:false,old:blob.size,neu:nb.size}}
+async function shrinkRun(dry){const o=$('#sout'),grey=$('#sgrey').checked;SSTOP=false;o.textContent='Listing pictures…';
+ try{let paths=await allPaths();if(dry)paths=paths.slice(0,10);if(!paths.length){o.textContent='No pictures found.';return}
+  if(!dry&&!confirm(`Shrink up to ${paths.length} pictures? The originals are replaced and cannot be restored. Run this once.`))return;
+  $('#sstop').style.display='';let done=0,saved=0,old=0,changed=0,fail=0;
+  for(const p of paths){if(SSTOP)break;try{const r=await shrinkOne(p,grey,dry);old+=r.old;if(!r.skip){saved+=r.old-r.neu;changed++}}catch(e){fail++}done++;
+   o.textContent=`${dry?'Estimate':'Shrinking'}: ${done} of ${paths.length}, ${changed} ${dry?'would shrink':'shrunk'}, ${(saved/1048576).toFixed(2)} MB ${dry?'saved (estimate)':'freed'}${fail?`, ${fail} failed`:''}`}
+  $('#sstop').style.display='none';if(dry&&done)o.textContent+=`. About ${(saved/Math.max(old,1)*100).toFixed(0)}% smaller on these. Nothing was changed.`;else toast(`Done ✓ ${(saved/1048576).toFixed(1)} MB freed`)
+ }catch(e){o.textContent='Problem: '+e}}
+$('#sest').onclick=()=>shrinkRun(true);$('#sgo').onclick=()=>shrinkRun(false);$('#sstop').onclick=()=>{SSTOP=true};
 gate();
 </script></body></html>
