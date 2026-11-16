@@ -289,30 +289,35 @@ async function saveLoose(){const st=$('#st'),btn=$('#saveloose');st.className=''
  }catch(x){st.className='err';st.textContent='Problem: '+x;btn.disabled=false}}
 $('#saveloose').onclick=saveLoose;
 const fmtAns=q=>{const a=q.answer;return q.qtype==='truefalse'?(a?'true':'false'):q.qtype==='multiblank'?a.join(', '):q.qtype==='equation'?`${a.nums[0]} ${a.op} ${a.nums[1]} = ${a.res}`:String(a??'')};
+const EQ={};
 async function editQ(id){const el=$('#eq-'+id);if(el.innerHTML){el.innerHTML='';return}
- const{data:q}=await sb.from('questions').select('*').eq('id',id).single();if(!q)return;
+ const{data:q}=await sb.from('questions').select('*').eq('id',id).single();if(!q)return;EQ[id]={q};
+ const ks=['image_path','answer_image_path','explanation_image_path','passage_image_path'],ps=ks.map(k=>q[k]).filter(Boolean),urls={};
+ if(ps.length){const{data:s}=await sb.storage.from('question-images').createSignedUrls(ps,900);(s||[]).forEach(d=>{if(d.signedUrl)urls[d.path]=d.signedUrl})}
  const tp=topics.find(t=>t.id===q.topic_id),lv=tp?tp.level:$('#level').value,sj=tp?tp.subject:$('#subject').value;
+ const pic=(k,txt)=>q[k]?`<div class="pt"><b>Current picture</b><img class="pimg" src="${urls[q[k]]||''}" alt=""><label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" id="e-rm-${k}" style="width:auto;margin:0"> Remove this picture when I save</label><button class="ghost" data-eread="|${txt}|${k}|${id}">Read text from this picture</button></div>`:'';
+ const part=(label,k,fid,tid,rows,extra)=>`<div class="pt"><b>${label}</b>${pic(k,tid)}<label>${q[k]?'Replace with a new picture':'Add a picture'}<input type="file" id="${fid}" accept="image/*"></label><button class="ghost" data-eread="${fid}|${tid}|${k}|${id}">Read text from the new picture</button>${extra}</div>`;
  el.innerHTML=`<div class="qc" style="grid-template-columns:1fr"><div class="f">
  <label>No.<input id="e-num" value="${esc(q.number||'')}"></label>
  <label>Topic<select id="e-top"><option value="">Choose topic…</option>${topics.filter(t=>t.level===lv&&t.subject===sj).map(t=>`<option value="${t.id}" ${t.id===q.topic_id?'selected':''}>${esc(t.topic)}</option>`).join('')}</select></label>
  <label>Type<select id="e-type">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${k===q.qtype?'selected':''}>${v}</option>`).join('')}</select></label>
  <label>Answer<input id="e-ans" value="${esc(fmtAns(q))}"></label>
- <label>Marks<input id="e-marks" type="number" min="1" value="${q.marks||1}"></label></div>
- <label>Question text (optional when there is a picture)<textarea id="e-text" rows="3">${esc(/^Question \S+$/.test(q.prompt||'')?'':(q.prompt||''))}</textarea></label>
- <label>Options for multiple choice, one per line<textarea id="e-opts" rows="3">${esc((q.options||[]).join('\n'))}</textarea></label>
- <div class="f"><label>Replace question picture<input type="file" id="e-img" accept="image/*"></label><label>Add or replace answer picture<input type="file" id="e-aimg" accept="image/*"></label><label>Add or replace explanation picture<input type="file" id="e-eimg" accept="image/*"></label></div>
- <div class="bar"><button class="ghost" data-eread="e-img|e-text">Read question text from the new picture</button><button class="ghost" data-eread="e-aimg|e-atext">Read answer text</button><button class="ghost" data-eread="e-eimg|e-etext">Read explanation text</button></div>
- <label>Answer shown to the child (text)<textarea id="e-atext" rows="2">${esc(q.answer_text||'')}</textarea></label>
- <label>Explanation (text)<textarea id="e-etext" rows="3">${esc(q.explanation_text||'')}</textarea></label>
+ <label>Marks<input id="e-marks" type="number" min="1" value="${q.marks||1}"></label>
+ <label>Difficulty<select id="e-diff"><option value="">-</option>${[[1,'Easy'],[2,'Medium'],[3,'Hard']].map(([v,l])=>`<option value="${v}" ${q.difficulty===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
+ ${part('Question','image_path','e-img','e-text',3,`${q.passage_image_path?`<div class="pt"><b>Shared picture (also used by other questions)</b><img class="pimg" src="${urls[q.passage_image_path]||''}" alt=""><label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" id="e-rm-passage_image_path" style="width:auto;margin:0"> Detach it from this question when I save</label></div>`:''}<label>Question text<textarea id="e-text" rows="3">${esc(/^Question \S+$/.test(q.prompt||'')?'':(q.prompt||''))}</textarea></label><label>Options for multiple choice, one per line<textarea id="e-opts" rows="3">${esc((q.options||[]).join('\n'))}</textarea></label>`)}
+ ${part('Answer shown to the child','answer_image_path','e-aimg','e-atext',2,`<label>Text<textarea id="e-atext" rows="2">${esc(q.answer_text||'')}</textarea></label>`)}
+ ${part('Explanation','explanation_image_path','e-eimg','e-etext',3,`<label>Text<textarea id="e-etext" rows="3">${esc(q.explanation_text||'')}</textarea></label>`)}
  <div class="bar"><button class="alt" data-eqsave="${id}">Save changes</button><button class="ghost" data-eqx="${id}">Cancel</button></div></div>`}
-async function saveQ(id){try{const{data:q}=await sb.from('questions').select('*').eq('id',id).single(),type=$('#e-type').value,num=$('#e-num').value.trim(),text=$('#e-text').value.trim(),os=$('#e-opts').value,top=$('#e-top').value;
- if(!top)throw'Please choose a topic';const ans=answer({type,ans:$('#e-ans').value,num,typed:!!os.trim(),opts:os}),fi=$('#e-img').files[0],fa=$('#e-aimg').files[0],dir=q.paper_id||'custom';
- if(!fi&&!q.image_path&&!text)throw'A question needs a picture or some text';
- const upd={number:num,topic_id:top,qtype:type,answer:ans,marks:+$('#e-marks').value||1,options:optsArr({opts:os}),prompt:text||'Question '+num,answer_text:$('#e-atext').value.trim()||null,explanation_text:$('#e-etext').value.trim()||null};
- if(fi){const p=`${dir}/${uuid()}.jpg`;await up('question-images',p,await toJpeg(fi),'image/jpeg');if(q.image_path)await sb.storage.from('question-images').remove([q.image_path]);upd.image_path=p}
- if(fa){const p=`${dir}/a-${uuid()}.jpg`;await up('question-images',p,await toJpeg(fa),'image/jpeg');if(q.answer_image_path)await sb.storage.from('question-images').remove([q.answer_image_path]);upd.answer_image_path=p}
- const fe=$('#e-eimg').files[0];if(fe){const p=`${dir}/e-${uuid()}.jpg`;await up('question-images',p,await toJpeg(fe),'image/jpeg');if(q.explanation_image_path)await sb.storage.from('question-images').remove([q.explanation_image_path]);upd.explanation_image_path=p}
- const{error}=await sb.from('questions').update(upd).eq('id',id);if(error)throw error.message;toast('Saved ✓ question updated');$('#eq-'+id).innerHTML=''}catch(x){alert('Problem: '+x)}}
+async function saveQ(id){try{const q=EQ[id].q,type=$('#e-type').value,num=$('#e-num').value.trim(),text=$('#e-text').value.trim(),os=$('#e-opts').value,top=$('#e-top').value;
+ if(!top)throw'Please choose a topic';const ans=answer({type,ans:$('#e-ans').value,num,opts:os}),dir=q.paper_id||'custom',del=[],
+  upd={number:num,topic_id:top,qtype:type,answer:ans,marks:+$('#e-marks').value||1,options:optsArr({opts:os}),prompt:text||'Question '+num,answer_text:$('#e-atext').value.trim()||null,explanation_text:$('#e-etext').value.trim()||null,difficulty:$('#e-diff').value?+$('#e-diff').value:null};
+ for(const[k,fid,pre]of[['image_path','e-img',''],['answer_image_path','e-aimg','a-'],['explanation_image_path','e-eimg','e-']]){const f=$('#'+fid).files[0],rm=$('#e-rm-'+k)&&$('#e-rm-'+k).checked;
+  if(f){const p=`${dir}/${pre}${uuid()}.jpg`;await up('question-images',p,await toJpeg(f),'image/jpeg');if(q[k])del.push(q[k]);upd[k]=p}else if(rm){if(q[k])del.push(q[k]);upd[k]=null}}
+ if($('#e-rm-passage_image_path')&&$('#e-rm-passage_image_path').checked)upd.passage_image_path=null;
+ if(!('image_path' in upd?upd.image_path:q.image_path)&&!text)throw'A question needs a picture or some text';
+ const{error}=await sb.from('questions').update(upd).eq('id',id);if(error)throw error.message;
+ if(del.length)await sb.storage.from('question-images').remove(del);
+ toast('Saved ✓ question updated');const lp=q.paper_id||'custom';if($('#q-'+lp))showQs(lp);else $('#eq-'+id).innerHTML=''}catch(x){alert('Problem: '+x)}}
 /* ---- auto-find questions, read answers, JSON import ---- */
 let ALL=false;
 async function ocr(){const w=await Tesseract.createWorker('eng');const r=await w.recognize($('#cv'));await w.terminate();return r.data}
@@ -422,5 +427,12 @@ $('#impprompt').onclick=async()=>{const lv=$('#level').value,sj=$('#subject').va
  const txt=PROMPT.split('[LEVEL]').join(lv).split('[SUBJECT]').join(sj).split('[TOPICS]').join(names.join('\n')||'(no topics yet for this level and subject)');
  try{await navigator.clipboard.writeText(txt)}catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove()}
  toast('Prompt copied ✓ paste it into your AI tool')};
+async function eRead(spec,btn){const[fid,tid,key,id]=spec.split('|');let src=fid?($('#'+fid).files[0]||null):null;const t0=btn.textContent;btn.disabled=true;btn.textContent='Reading…';
+ try{if(!src&&key&&EQ[id]&&EQ[id].q[key]){const{data,error}=await sb.storage.from('question-images').download(EQ[id].q[key]);if(error)throw error.message;src=data}
+  if(!src){alert('Choose a picture first.');return}
+  const w=await Tesseract.createWorker('eng'),r=await w.recognize(src);await w.terminate();const lines=r.data.text.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(tid==='e-text'){const opts=[],body=[];lines.forEach(L=>{const m=L.match(/^\(?([1-6])[).]\s*(.+)$/);if(m&&body.length)opts.push(m[2]);else body.push(L)});if(body.length)body[0]=body[0].replace(/^\d{1,2}[.)]\s*/,'');$('#e-text').value=body.join('\n');if(opts.length)$('#e-opts').value=opts.join('\n')}
+  else $('#'+tid).value=lines.join('\n')
+ }catch(x){alert('Could not read the picture.')}finally{btn.disabled=false;btn.textContent=t0}}
 gate();
 </script></body></html>

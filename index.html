@@ -48,7 +48,7 @@ a.card{text-decoration:none;color:inherit}.ak p{margin:12px 0 4px}.expl{backgrou
 select{font:inherit;font-size:1rem;padding:8px 10px;border:2px solid var(--ink);border-radius:12px;background:var(--card);color:var(--ink)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chip{border:2px solid var(--ink);background:var(--card);border-radius:999px;padding:7px 14px}.chip.on{background:var(--sun);color:#1d2b53;font-weight:700}
 .grp{margin:10px 0}.grp summary{cursor:pointer;padding:12px 4px;font-size:1.1rem}.grp summary span{opacity:.7;font-size:.9rem;margin-left:6px}
-.qtxt{white-space:pre-wrap;font-size:1.25rem;margin:10px 0}.qimg{display:block;max-width:100%;margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
+.gh{margin:16px 0 4px;font-size:1rem;opacity:.8}.qtxt{white-space:pre-wrap;font-size:1.25rem;margin:10px 0}.qimg{display:block;max-width:100%;margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:4px solid var(--coral);outline-offset:2px}
 </style></head><body><div id="app"><p style="text-align:center;margin-top:30vh">Loading…</p></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
@@ -159,21 +159,26 @@ async function progress(){app.innerHTML=LOAD;const st=await stats(),ids=Object.k
 ${ids.length?ids.map(t=>{const x=st[t],p=Math.round(x.c/x.n*100);return`<div class="pg"><div><span>${esc(tname(t))}</span><span>${p}% (${x.c}/${x.n})</span></div><div class="pb"><i class="${x.n>=3&&p<70?'w':''}" style="width:${p}%"></i></div></div>`}).join(''):'<p style="margin-top:20px">No answers yet. Try some practice!</p>'}
 <p style="opacity:.7;font-size:.9rem;margin-top:20px">Lowest first. Red bars need more practice.</p>`}
 async function papersScreen(){app.innerHTML=LOAD;const{data}=await sb.from('papers').select('id,title,level,subject,school,year,term,syllabus,pdf_path,answer_pdf_path,topic_ids,questions(count)').order('year',{ascending:false});
- const all=data||[],lv=S.kid.level||'P1',tops=TOP.filter(t=>t.level===lv&&t.subject===S.sub);S.pq=S.pq||'';
+ const all=data||[],lv=S.kid.level||'P1',tops=TOP.filter(t=>t.level===lv&&t.subject===S.sub);S.pq=S.pq||'';S.sort=S.sort||'school';S.more=40;
  app.innerHTML=`<div class="top"><button class="x" onclick="home()" aria-label="Back">←</button><span>Past papers</span><span></span></div>
 <input id="ps" type="search" placeholder="Search school, year or topic…" value="${esc(S.pq)}" aria-label="Search papers" style="margin:10px 0 0">
 <div class="chips"><button class="chip${S.all?'':' on'}" id="c1">${esc(lv)}</button><button class="chip${S.all?' on':''}" id="c2">All levels</button></div>
-<div class="chips" id="tc">${tops.map(t=>`<button class="chip" data-q="${esc(t.topic)}">${esc(t.topic)}</button>`).join('')}</div><div id="pl"></div>`;
+<div class="chips" id="tc">${tops.map(t=>`<button class="chip" data-q="${esc(t.topic)}">${esc(t.topic)}</button>`).join('')}</div>
+<p style="margin:6px 0"><label>Sort by <select id="so"><option value="school">School name</option><option value="title">Paper name</option><option value="type">Paper type</option><option value="year">Year (newest first)</option></select></label></p><div id="pl"></div>`;
+ $('#so').value=S.sort;
  const card=p=>`<button class="card" data-p="${p.id}"><b>${esc(p.title)}</b><span>${esc([p.level,p.subject,p.school,p.year,p.term].filter(Boolean).join(' '))}</span><span>${p.questions&&p.questions[0]?p.questions[0].count:0} questions${p.syllabus==='2013'?' (older syllabus)':''}</span></button>`;
- const draw=()=>{const q=S.pq.trim().toLowerCase();
-  if(!q){$('#pl').innerHTML=`<p style="margin-top:18px;opacity:.75">${all.length?`${all.length} paper${all.length>1?'s':''} available. Type a school, year or topic, or tap a topic above.`:'No papers have been shared with you yet.'}</p>`;return}
-  const ts=TOP.filter(t=>(S.all||t.level===lv)&&t.topic.toLowerCase().includes(q)).slice(0,6),g={},
-   ps=all.filter(p=>(S.all||p.level===lv)&&[p.title,p.school,p.year,p.term,p.subject,...(p.topic_ids||[]).map(tname)].join(' ').toLowerCase().includes(q));
-  ps.forEach(p=>{const k=p.school||'Other papers';(g[k]=g[k]||[]).push(p)});
-  $('#pl').innerHTML=(ts.length?`<h3 style="margin:16px 0 4px">Practise by topic</h3>${ts.map(t=>`<button class="card" data-t="${t.id}"><b>${esc(t.topic)}</b><span>${esc(t.level)} ${esc(t.subject)}</span></button>`).join('')}`:'')+
-   (ps.length?`<h3 style="margin:16px 0 4px">Papers</h3>`+Object.keys(g).sort().map(s=>`<details class="grp" open><summary><b>${esc(s)}</b><span>${g[s].length} paper${g[s].length>1?'s':''}</span></summary>${g[s].map(card).join('')}</details>`).join(''):'<p style="margin-top:16px">No papers found.</p>')};
- draw();$('#ps').oninput=e=>{S.pq=e.target.value;draw()};
- $('#tc').onclick=e=>{const b=e.target.closest('[data-q]');if(b){S.pq=b.dataset.q;$('#ps').value=S.pq;draw()}};
+ const key=p=>S.sort==='school'?(p.school||'Other'):S.sort==='type'?(p.term||'Other'):S.sort==='year'?String(p.year||'Older'):'';
+ const cmp=(a,b)=>{const f=S.sort==='school'?[a.school||'~',b.school||'~']:S.sort==='type'?[a.term||'~',b.term||'~']:S.sort==='year'?[b.year||0,a.year||0]:[a.title,b.title];
+  const r=typeof f[0]==='number'?f[0]-f[1]:String(f[0]).localeCompare(String(f[1]),undefined,{numeric:true});return r||String(a.title).localeCompare(String(b.title),undefined,{numeric:true})};
+ const draw=()=>{const q=S.pq.trim().toLowerCase(),ps=all.filter(p=>(S.all||p.level===lv)&&(!q||[p.title,p.school,p.year,p.term,p.subject,...(p.topic_ids||[]).map(tname)].join(' ').toLowerCase().includes(q))).sort(cmp),
+   ts=q?TOP.filter(t=>(S.all||t.level===lv)&&t.topic.toLowerCase().includes(q)).slice(0,6):[];let h='';
+  if(ts.length)h+=`<h3 style="margin:16px 0 4px">Practise by topic</h3>${ts.map(t=>`<button class="card" data-t="${t.id}"><b>${esc(t.topic)}</b><span>${esc(t.level)} ${esc(t.subject)}</span></button>`).join('')}`;
+  if(!ps.length)h+=`<p style="margin-top:16px">${all.length?'No papers found.':'No papers have been shared with you yet.'}</p>`;
+  else{h+=`<h3 style="margin:16px 0 4px">Papers (${ps.length})</h3>`;let last=null;for(const p of ps.slice(0,S.more)){const k=key(p);if(k&&k!==last){h+=`<h4 class="gh">${esc(k)}</h4>`;last=k}h+=card(p)}
+   if(ps.length>S.more)h+=`<button class="mini" id="more">Show more (${ps.length-S.more} left)</button>`}
+  $('#pl').innerHTML=h;const mb=$('#more');if(mb)mb.onclick=()=>{S.more+=40;draw()}};
+ draw();$('#ps').oninput=e=>{S.pq=e.target.value;S.more=40;draw()};$('#so').onchange=e=>{S.sort=e.target.value;S.more=40;draw()};
+ $('#tc').onclick=e=>{const b=e.target.closest('[data-q]');if(b){S.pq=b.dataset.q;$('#ps').value=S.pq;S.more=40;draw()}};
  $('#pl').onclick=e=>{const b=e.target.closest('[data-p]');if(b)return paperScreen(all.find(p=>p.id===b.dataset.p));const t=e.target.closest('[data-t]');if(t)start([t.dataset.t],tname(t.dataset.t))};
  $('#c1').onclick=()=>{S.all=false;papersScreen()};$('#c2').onclick=()=>{S.all=true;papersScreen()}}
 async function paperScreen(p){app.innerHTML=LOAD;track('open_paper',{paper:p.id});const paths=[p.pdf_path,p.answer_pdf_path].filter(Boolean),u={};
